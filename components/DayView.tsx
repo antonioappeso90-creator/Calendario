@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { X } from 'lucide-react';
 import { CalendarEvent, Shift, ShiftType } from '@/lib/types';
 import { formatDate, getShift, saveShift, deleteShift, shiftDefaults } from '@/lib/shiftStorage';
 
@@ -15,6 +16,7 @@ export default function DayView({ currentDate, events, onShiftUpdate }: DayViewP
   const [selectedType, setSelectedType] = useState<ShiftType | ''>('');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     loadShiftData();
@@ -56,6 +58,7 @@ export default function DayView({ currentDate, events, onShiftUpdate }: DayViewP
 
     saveShift(newShift);
     setShift(newShift);
+    setIsModalOpen(false);
     onShiftUpdate();
   };
 
@@ -65,7 +68,17 @@ export default function DayView({ currentDate, events, onShiftUpdate }: DayViewP
     setSelectedType('');
     setStartTime('');
     setEndTime('');
+    setIsModalOpen(false);
     onShiftUpdate();
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    loadShiftData();
+  };
+
+  const handleOpenModal = () => {
+    setIsModalOpen(true);
   };
 
   const dayEvents = events.filter((event) => {
@@ -104,119 +117,170 @@ export default function DayView({ currentDate, events, onShiftUpdate }: DayViewP
 
   return (
     <div className="flex flex-col h-full">
-      <div className="bg-slate-800 border-b border-slate-700 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-3xl font-bold text-white capitalize">{dateStr}</h2>
-          {isToday() && (
-            <span className="bg-blue-600 text-white px-4 py-2 rounded-lg text-lg font-semibold">
-              Today
-            </span>
-          )}
-        </div>
-
-        <div className="bg-slate-900 rounded-lg p-6">
-          <h3 className="text-2xl font-bold text-white mb-4">Shift Management</h3>
-
-          <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="bg-gradient-to-r from-slate-800/95 to-slate-900/95 border-b border-slate-700/50 p-8">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-4xl font-bold text-white capitalize tracking-tight">{dateStr}</h2>
+          <div className="flex items-center gap-4">
+            {isToday() && (
+              <span className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-2xl text-xl font-bold shadow-lg">
+                Today
+              </span>
+            )}
             <button
-              onClick={() => handleShiftTypeChange('Mattino')}
-              className={`py-4 px-6 rounded-lg text-xl font-semibold transition-colors ${
-                selectedType === 'Mattino'
-                  ? 'bg-amber-600 text-white'
-                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-              }`}
+              onClick={handleOpenModal}
+              className="bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white px-8 py-3 rounded-2xl text-xl font-bold shadow-lg transition-all duration-200"
             >
-              Mattino
-            </button>
-            <button
-              onClick={() => handleShiftTypeChange('Pomeriggio')}
-              className={`py-4 px-6 rounded-lg text-xl font-semibold transition-colors ${
-                selectedType === 'Pomeriggio'
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-              }`}
-            >
-              Pomeriggio
-            </button>
-            <button
-              onClick={() => handleShiftTypeChange('Riposo')}
-              className={`py-4 px-6 rounded-lg text-xl font-semibold transition-colors ${
-                selectedType === 'Riposo'
-                  ? 'bg-green-600 text-white'
-                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-              }`}
-            >
-              Riposo
+              {shift ? 'Edit Shift' : 'Add Shift'}
             </button>
           </div>
+        </div>
 
-          {selectedType && selectedType !== 'Riposo' && (
-            <div className="grid grid-cols-2 gap-4 mb-6">
+        {shift && (
+          <div className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 rounded-3xl p-6 shadow-xl border border-slate-700/30">
+            <div className="flex items-center justify-between">
               <div>
-                <label className="block text-lg font-semibold text-slate-300 mb-2">
-                  Start Time
-                </label>
-                <input
-                  type="time"
-                  value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
-                  className="w-full bg-slate-800 text-white text-xl px-4 py-3 rounded-lg border border-slate-700 focus:border-blue-500 focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-lg font-semibold text-slate-300 mb-2">
-                  End Time
-                </label>
-                <input
-                  type="time"
-                  value={endTime}
-                  onChange={(e) => setEndTime(e.target.value)}
-                  className="w-full bg-slate-800 text-white text-xl px-4 py-3 rounded-lg border border-slate-700 focus:border-blue-500 focus:outline-none"
-                />
+                <div className="text-xl font-bold text-white mb-2">Current Shift</div>
+                <div className="flex items-center gap-4">
+                  <span
+                    className={`text-2xl font-bold px-6 py-3 rounded-xl ${
+                      shift.type === 'Mattino'
+                        ? 'bg-amber-600 text-white'
+                        : shift.type === 'Pomeriggio'
+                        ? 'bg-fuchsia-600 text-white'
+                        : 'bg-green-600 text-white'
+                    }`}
+                  >
+                    {shift.type}
+                  </span>
+                  {shift.type !== 'Riposo' && (
+                    <span className="text-2xl font-bold text-slate-200">
+                      {shift.startTime} - {shift.endTime}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
-          )}
-
-          <div className="flex gap-4">
-            <button
-              onClick={handleSaveShift}
-              disabled={!selectedType}
-              className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-700 disabled:cursor-not-allowed text-white py-3 px-6 rounded-lg text-xl font-semibold transition-colors"
-            >
-              Save Shift
-            </button>
-            {shift && (
-              <button
-                onClick={handleDeleteShift}
-                className="bg-red-600 hover:bg-red-700 text-white py-3 px-6 rounded-lg text-xl font-semibold transition-colors"
-              >
-                Delete Shift
-              </button>
-            )}
           </div>
-        </div>
+        )}
       </div>
 
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-8">
+          <div className="glass-effect rounded-3xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-slate-700/30">
+            <div className="sticky top-0 bg-gradient-to-r from-slate-800/95 to-slate-900/95 backdrop-blur-md p-8 border-b border-slate-700/50 flex items-center justify-between rounded-t-3xl">
+              <h3 className="text-3xl font-bold text-white tracking-tight">Shift Assignment</h3>
+              <button
+                onClick={handleCloseModal}
+                className="bg-slate-700/80 hover:bg-slate-600 text-white w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-200 shadow-lg hover:scale-105"
+                aria-label="Close modal"
+              >
+                <X size={28} strokeWidth={2.5} />
+              </button>
+            </div>
+
+            <div className="p-8">
+              <div className="grid grid-cols-3 gap-6 mb-8">
+                <button
+                  onClick={() => handleShiftTypeChange('Mattino')}
+                  className={`py-6 px-8 rounded-2xl text-2xl font-bold transition-all duration-200 shadow-lg hover:scale-105 ${
+                    selectedType === 'Mattino'
+                      ? 'bg-gradient-to-br from-amber-600 to-amber-700 text-white shadow-amber-600/50'
+                      : 'bg-slate-700/60 text-slate-300 hover:bg-slate-600/60'
+                  }`}
+                >
+                  Mattino
+                </button>
+                <button
+                  onClick={() => handleShiftTypeChange('Pomeriggio')}
+                  className={`py-6 px-8 rounded-2xl text-2xl font-bold transition-all duration-200 shadow-lg hover:scale-105 ${
+                    selectedType === 'Pomeriggio'
+                      ? 'bg-gradient-to-br from-fuchsia-600 to-fuchsia-700 text-white shadow-fuchsia-600/50'
+                      : 'bg-slate-700/60 text-slate-300 hover:bg-slate-600/60'
+                  }`}
+                >
+                  Pomeriggio
+                </button>
+                <button
+                  onClick={() => handleShiftTypeChange('Riposo')}
+                  className={`py-6 px-8 rounded-2xl text-2xl font-bold transition-all duration-200 shadow-lg hover:scale-105 ${
+                    selectedType === 'Riposo'
+                      ? 'bg-gradient-to-br from-green-600 to-green-700 text-white shadow-green-600/50'
+                      : 'bg-slate-700/60 text-slate-300 hover:bg-slate-600/60'
+                  }`}
+                >
+                  Riposo
+                </button>
+              </div>
+
+              {selectedType && selectedType !== 'Riposo' && (
+                <div className="grid grid-cols-2 gap-6 mb-8">
+                  <div>
+                    <label className="block text-xl font-bold text-slate-200 mb-3">
+                      Start Time
+                    </label>
+                    <input
+                      type="time"
+                      value={startTime}
+                      onChange={(e) => setStartTime(e.target.value)}
+                      className="w-full bg-slate-800/80 text-white text-2xl px-6 py-4 rounded-xl border-2 border-slate-700/50 focus:border-blue-500 focus:outline-none transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xl font-bold text-slate-200 mb-3">
+                      End Time
+                    </label>
+                    <input
+                      type="time"
+                      value={endTime}
+                      onChange={(e) => setEndTime(e.target.value)}
+                      className="w-full bg-slate-800/80 text-white text-2xl px-6 py-4 rounded-xl border-2 border-slate-700/50 focus:border-blue-500 focus:outline-none transition-colors"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-6">
+                <button
+                  onClick={handleSaveShift}
+                  disabled={!selectedType}
+                  className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-slate-700 disabled:to-slate-700 disabled:cursor-not-allowed text-white py-5 px-8 rounded-2xl text-2xl font-bold transition-all duration-200 shadow-xl disabled:shadow-none"
+                >
+                  Save Shift
+                </button>
+                {shift && (
+                  <button
+                    onClick={handleDeleteShift}
+                    className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white py-5 px-8 rounded-2xl text-2xl font-bold transition-all duration-200 shadow-xl"
+                  >
+                    Delete Shift
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto">
-        <div className="divide-y divide-slate-700">
+        <div className="divide-y divide-slate-700/50">
           {hours.map((hour) => {
             const hourEvents = getEventsForHour(hour);
 
             return (
-              <div key={hour} className="flex bg-slate-800 hover:bg-slate-700 transition-colors">
-                <div className="w-32 p-4 text-right border-r border-slate-700 bg-slate-900">
-                  <div className="text-xl font-semibold text-slate-400">
+              <div key={hour} className="flex bg-slate-800/60 hover:bg-slate-700/60 transition-colors">
+                <div className="w-40 p-5 text-right border-r border-slate-700/50 bg-slate-900/80">
+                  <div className="text-2xl font-bold text-slate-300">
                     {hour.toString().padStart(2, '0')}:00
                   </div>
                 </div>
-                <div className="flex-1 p-4 min-h-[80px]">
+                <div className="flex-1 p-5 min-h-[90px]">
                   {hourEvents.map((event) => (
                     <div
                       key={event.id}
-                      className="bg-blue-600 text-white px-4 py-2 rounded-lg mb-2"
+                      className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-4 rounded-2xl mb-3 shadow-lg"
                     >
-                      <div className="text-lg font-semibold">{event.title}</div>
-                      <div className="text-sm">
+                      <div className="text-xl font-bold">{event.title}</div>
+                      <div className="text-lg mt-1 opacity-90">
                         {new Date(event.start).toLocaleTimeString('it-IT', {
                           hour: '2-digit',
                           minute: '2-digit',

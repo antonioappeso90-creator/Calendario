@@ -129,70 +129,70 @@ export default function Home() {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
-      <header className="bg-slate-900 border-b border-slate-700 p-4 flex items-center justify-between">
-        <div className="flex items-center gap-6">
-          <h1 className="text-3xl font-bold text-white">Calendar Dashboard</h1>
+      <header className="bg-gradient-to-r from-slate-900/95 to-slate-800/95 border-b border-slate-700/50 p-6 flex items-center justify-between shadow-xl">
+        <div className="flex items-center gap-8">
+          <h1 className="text-4xl font-bold text-white tracking-tight">Calendar Dashboard</h1>
           <button
             onClick={() => setIsSettingsOpen(true)}
-            className="bg-slate-700 hover:bg-slate-600 text-white px-6 py-3 rounded-lg text-lg font-semibold transition-colors"
+            className="bg-gradient-to-r from-slate-700 to-slate-800 hover:from-slate-600 hover:to-slate-700 text-white px-8 py-4 rounded-2xl text-xl font-bold transition-all duration-200 shadow-lg"
           >
             Settings
           </button>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-6">
           <button
             onClick={handleToday}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg text-lg font-semibold transition-colors"
+            className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-8 py-4 rounded-2xl text-xl font-bold transition-all duration-200 shadow-lg"
           >
             Today
           </button>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4">
             <button
               onClick={handlePrevious}
-              className="bg-slate-700 hover:bg-slate-600 text-white w-12 h-12 rounded-lg text-2xl font-bold transition-colors"
+              className="bg-gradient-to-r from-slate-700 to-slate-800 hover:from-slate-600 hover:to-slate-700 text-white w-14 h-14 rounded-2xl text-3xl font-bold transition-all duration-200 shadow-lg flex items-center justify-center"
             >
               ‹
             </button>
-            <div className="text-xl font-bold text-white min-w-[300px] text-center capitalize">
+            <div className="text-2xl font-bold text-white min-w-[350px] text-center capitalize tracking-tight">
               {getHeaderText()}
             </div>
             <button
               onClick={handleNext}
-              className="bg-slate-700 hover:bg-slate-600 text-white w-12 h-12 rounded-lg text-2xl font-bold transition-colors"
+              className="bg-gradient-to-r from-slate-700 to-slate-800 hover:from-slate-600 hover:to-slate-700 text-white w-14 h-14 rounded-2xl text-3xl font-bold transition-all duration-200 shadow-lg flex items-center justify-center"
             >
               ›
             </button>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex gap-3">
             <button
               onClick={() => setView('month')}
-              className={`px-6 py-3 rounded-lg text-lg font-semibold transition-colors ${
+              className={`px-8 py-4 rounded-2xl text-xl font-bold transition-all duration-200 shadow-lg ${
                 view === 'month'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white'
+                  : 'bg-slate-700/60 text-slate-300 hover:bg-slate-600/60'
               }`}
             >
               Month
             </button>
             <button
               onClick={() => setView('week')}
-              className={`px-6 py-3 rounded-lg text-lg font-semibold transition-colors ${
+              className={`px-8 py-4 rounded-2xl text-xl font-bold transition-all duration-200 shadow-lg ${
                 view === 'week'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white'
+                  : 'bg-slate-700/60 text-slate-300 hover:bg-slate-600/60'
               }`}
             >
               Week
             </button>
             <button
               onClick={() => setView('day')}
-              className={`px-6 py-3 rounded-lg text-lg font-semibold transition-colors ${
+              className={`px-8 py-4 rounded-2xl text-xl font-bold transition-all duration-200 shadow-lg ${
                 view === 'day'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white'
+                  : 'bg-slate-700/60 text-slate-300 hover:bg-slate-600/60'
               }`}
             >
               Day

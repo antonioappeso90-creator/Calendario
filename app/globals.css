@@ -1,8 +1,10 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0f172a;
+  --background: #0a0e1a;
   --foreground: #ffffff;
+  --glass-bg: rgba(15, 23, 42, 0.6);
+  --glass-border: rgba(148, 163, 184, 0.1);
 }
 
 @theme inline {
@@ -13,10 +15,12 @@
 }
 
 body {
-  background: var(--background);
+  background: linear-gradient(135deg, #0a0e1a 0%, #1e293b 100%);
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
-  font-size: 18px;
+  font-size: 19px;
+  line-height: 1.6;
+  letter-spacing: 0.01em;
 }
 
 * {
@@ -36,7 +40,14 @@ input,
 button,
 select,
 textarea {
-  font-size: 18px;
+  font-size: 19px;
+}
+
+.glass-effect {
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
 }
 
 @media (orientation: portrait) {
@@ -46,12 +57,14 @@ textarea {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    background: #1e293b;
-    padding: 2rem;
-    border-radius: 1rem;
+    background: rgba(30, 41, 59, 0.95);
+    backdrop-filter: blur(12px);
+    padding: 2.5rem;
+    border-radius: 1.5rem;
     text-align: center;
     z-index: 9999;
-    font-size: 1.5rem;
+    font-size: 1.75rem;
     font-weight: bold;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
   }
 }
