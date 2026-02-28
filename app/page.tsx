@@ -141,7 +141,6 @@ export default function App() {
             let allFetchedEvents = [];
             for (const url of icalUrls) {
                 try {
-                    // MENTORE DOCET: Chiamiamo la TUA API privata
                     const res = await fetch(`/api/proxy-ical?url=${encodeURIComponent(url)}`);
                     if (!res.ok) throw new Error('Proxy error');
                     const text = await res.text();
@@ -187,10 +186,8 @@ export default function App() {
                 .time-grid-row { height: 60px; border-bottom: 1px solid #e5e7eb; }
             `}} />
 
-            {/* Sidebar Meteo */}
             <WeatherSidebar />
 
-            {/* Area Principale */}
             <main className="flex-1 flex flex-col h-screen overflow-hidden bg-slate-50">
                 <header className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center shadow-sm z-10">
                     <div className="flex items-center gap-4">
@@ -234,10 +231,6 @@ export default function App() {
         </div>
     );
 }
-
-// --- SOTTO-COMPONENTI (MonthView, WeekView, EventModal, SettingsModal, WeatherSidebar) ---
-// [Qui devono esserci tutte le definizioni dei componenti come nei messaggi precedenti]
-// Per brevità non le riscrivo tutte qui, ma assicurati di avere il file completo.
 
 function MonthView({ currentDate, events, onDayClick, onDeleteEvent }) {
     const year = currentDate.getFullYear();
@@ -347,7 +340,7 @@ function EventModal({ date, onClose, onSave }) {
             <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden p-6 space-y-5">
                 <div className="flex justify-between items-center"><h3 className="text-lg font-bold text-slate-800">Nuovo Turno</h3><button onClick={onClose}><Icons.X /></button></div>
                 <div className="flex flex-wrap gap-2">
-                    {shiftPresets.map(p => <button key={p.label} onClick={() => {setTitle(p.label); setStartTime(p.start); setEndTime(p.end); setColor(p.color);}} className={`px-3 py-1.5 rounded-xl text-sm font-medium border ${title === p.label ? 'bg-blue-50 border-blue-200 text-blue-700' : 'border-slate-200'}`}>{p.label}</button>)}
+                    {shiftPresets.map(p => <button key={p.label} type="button" onClick={() => {setTitle(p.label); setStartTime(p.start); setEndTime(p.end); setColor(p.color);}} className={`px-3 py-1.5 rounded-xl text-sm font-medium border ${title === p.label ? 'bg-blue-50 border-blue-200 text-blue-700' : 'border-slate-200'}`}>{p.label}</button>)}
                 </div>
                 <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="Titolo..." className="w-full border border-slate-300 rounded-xl px-4 py-2" />
                 <div className="grid grid-cols-2 gap-4">
@@ -355,7 +348,7 @@ function EventModal({ date, onClose, onSave }) {
                     <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="border border-slate-300 rounded-xl px-4 py-2" />
                 </div>
                 <div className="flex gap-2">
-                    {['bg-blue-500', 'bg-emerald-500', 'bg-amber-500', 'bg-rose-500'].map(c => <button key={c} onClick={() => setColor(c + ' text-white')} className={`w-8 h-8 rounded-full ${c} ${color.includes(c) ? 'ring-2 ring-slate-400' : ''}`} />)}
+                    {['bg-blue-500', 'bg-emerald-500', 'bg-amber-500', 'bg-rose-500'].map(c => <button key={c} type="button" onClick={() => setColor(c + ' text-white')} className={`w-8 h-8 rounded-full ${c} ${color.includes(c) ? 'ring-2 ring-slate-400' : ''}`} />)}
                 </div>
                 <button onClick={() => onSave({ date, title, startTime, endTime, color })} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">Salva</button>
             </div>
@@ -371,7 +364,7 @@ function SettingsModal({ urls, setUrls, onClose }) {
                 <div className="flex justify-between items-center"><h3 className="font-bold">Impostazioni iCal</h3><button onClick={onClose}><Icons.X /></button></div>
                 <div className="flex gap-2">
                     <input type="url" value={newUrl} onChange={e => setNewUrl(e.target.value)} placeholder="URL .ics..." className="flex-1 border rounded-xl px-3 py-2 text-sm" />
-                    <button onClick={() => { setUrls([...urls, newUrl]); setNewUrl(''); }} className="bg-blue-600 text-white px-4 rounded-xl">Add</button>
+                    <button onClick={() => { if(newUrl) { setUrls([...urls, newUrl]); setNewUrl(''); } }} className="bg-blue-600 text-white px-4 rounded-xl">Add</button>
                 </div>
                 <div className="space-y-2">{urls.map(u => <div key={u} className="flex justify-between bg-slate-50 p-2 rounded-lg text-xs truncate"><span>{u}</span><button onClick={() => setUrls(urls.filter(x => x !== u))} className="text-red-500">Elimina</button></div>)}</div>
             </div>
