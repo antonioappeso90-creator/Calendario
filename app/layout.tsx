@@ -6,13 +6,13 @@ export const viewport = {
 
 export const metadata = {
   title: 'Calendario Turni',
-  description: 'App gestione turni e meteo',
+  description: 'App gestione turni con Next.js 16',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="it">
-      <body className="bg-slate-50 text-slate-900 font-sans antialiased overflow-hidden">
+      <body>
         {children}
       </body>
     </html>
