@@ -2,6 +2,17 @@
 
 import React, { useState, useEffect } from 'react';
 
+// --- TIPI PER TYPESCRIPT (Risolvono il Build Failed) ---
+interface TurnoEvent {
+    id: string;
+    date: string;
+    title: string;
+    startTime: string;
+    endTime: string;
+    color: string;
+    isReadOnly?: boolean;
+}
+
 // --- ICONE SVG (Inline per evitare dipendenze esterne) ---
 const Icons = {
     ChevronLeft: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>,
@@ -16,29 +27,29 @@ const Icons = {
 
 // --- UTILITIES DATE ---
 const DateUtils = {
-    getDaysInMonth: (year, month) => new Date(year, month + 1, 0).getDate(),
-    getFirstDayOfMonth: (year, month) => {
+    getDaysInMonth: (year: number, month: number) => new Date(year, month + 1, 0).getDate(),
+    getFirstDayOfMonth: (year: number, month: number) => {
         let day = new Date(year, month, 1).getDay();
         return day === 0 ? 6 : day - 1; 
     },
-    formatDate: (date) => {
+    formatDate: (date: Date) => {
         const yyyy = date.getFullYear();
         const mm = String(date.getMonth() + 1).padStart(2, '0');
         const dd = String(date.getDate()).padStart(2, '0');
         return `${yyyy}-${mm}-${dd}`;
     },
-    getStartOfWeek: (date) => {
+    getStartOfWeek: (date: Date) => {
         const d = new Date(date);
         const day = d.getDay();
         const diff = d.getDate() - day + (day === 0 ? -6 : 1);
         return new Date(d.setDate(diff));
     },
-    addDays: (date, days) => {
+    addDays: (date: Date, days: number) => {
         const d = new Date(date);
         d.setDate(d.getDate() + days);
         return d;
     },
-    parseTime: (timeStr) => {
+    parseTime: (timeStr: string) => {
         const [h, m] = timeStr.split(':').map(Number);
         return { h, m, totalMinutes: h * 60 + m };
     }
@@ -46,7 +57,7 @@ const DateUtils = {
 
 // --- PARSER ICAL ---
 const ICalUtils = {
-    parseDate: (dateStr) => {
+    parseDate: (dateStr: string) => {
         const y = parseInt(dateStr.substr(0, 4));
         const m = parseInt(dateStr.substr(4, 2)) - 1;
         const d = parseInt(dateStr.substr(6, 2));
@@ -59,10 +70,10 @@ const ICalUtils = {
         }
         return new Date(y, m, d);
     },
-    parse: (icsString) => {
-        const events = [];
+    parse: (icsString: string): TurnoEvent[] => {
+        const events: TurnoEvent[] = [];
         const lines = icsString.split(/\r\n|\n|\r/);
-        let currentEvent = null;
+        let currentEvent: any = null;
 
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
@@ -105,14 +116,14 @@ const ICalUtils = {
 // --- COMPONENTE PRINCIPALE ---
 export default function App() {
     const [currentDate, setCurrentDate] = useState(new Date());
-    const [view, setView] = useState('month');
-    const [events, setEvents] = useState([]);
+    const [view, setView] = useState<'month' | 'week'>('month');
+    const [events, setEvents] = useState<TurnoEvent[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [selectedDate, setSelectedDate] = useState(null);
+    const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-    const [icalUrls, setIcalUrls] = useState([]);
-    const [icalEvents, setIcalEvents] = useState([]);
+    const [icalUrls, setIcalUrls] = useState<string[]>([]);
+    const [icalEvents, setIcalEvents] = useState<TurnoEvent[]>([]);
     const [isSyncing, setIsSyncing] = useState(false);
 
     useEffect(() => {
@@ -138,7 +149,7 @@ export default function App() {
         
         const fetchAllIcal = async () => {
             setIsSyncing(true);
-            let allFetchedEvents = [];
+            let allFetchedEvents: TurnoEvent[] = [];
             for (const url of icalUrls) {
                 try {
                     const res = await fetch(`/api/proxy-ical?url=${encodeURIComponent(url)}`);
@@ -158,20 +169,20 @@ export default function App() {
 
     const allEventsToDisplay = [...events, ...icalEvents];
 
-    const addEvent = (newEvent) => {
+    const addEvent = (newEvent: Omit<TurnoEvent, 'id'>) => {
         setEvents(prev => [...prev, { ...newEvent, id: Date.now().toString() }]);
         setIsModalOpen(false);
     };
 
-    const deleteEvent = (id, e) => {
+    const deleteEvent = (id: string, e?: React.MouseEvent) => {
         if(e) e.stopPropagation();
-        if(String(id).startsWith('ical-')) return;
+        if(id.startsWith('ical-')) return;
         if(window.confirm("Sei sicuro di voler eliminare questo turno?")) {
             setEvents(prev => prev.filter(ev => ev.id !== id));
         }
     };
 
-    const navigateDate = (dir) => {
+    const navigateDate = (dir: number) => {
         const newDate = new Date(currentDate);
         if (view === 'month') newDate.setMonth(newDate.getMonth() + dir);
         else newDate.setDate(newDate.getDate() + (dir * 7));
@@ -219,9 +230,9 @@ export default function App() {
 
                 <div className="flex-1 overflow-auto bg-white relative">
                     {view === 'month' ? (
-                        <MonthView currentDate={currentDate} events={allEventsToDisplay} onDayClick={(d) => { setSelectedDate(d); setIsModalOpen(true); }} onDeleteEvent={deleteEvent} />
+                        <MonthView currentDate={currentDate} events={allEventsToDisplay} onDayClick={(d: string) => { setSelectedDate(d); setIsModalOpen(true); }} onDeleteEvent={deleteEvent} />
                     ) : (
-                        <WeekView currentDate={currentDate} events={allEventsToDisplay} onTimeClick={(d) => { setSelectedDate(d); setIsModalOpen(true); }} onDeleteEvent={deleteEvent} />
+                        <WeekView currentDate={currentDate} events={allEventsToDisplay} onTimeClick={(d: string) => { setSelectedDate(d); setIsModalOpen(true); }} onDeleteEvent={deleteEvent} />
                     )}
                 </div>
             </main>
@@ -232,7 +243,9 @@ export default function App() {
     );
 }
 
-function MonthView({ currentDate, events, onDayClick, onDeleteEvent }) {
+// --- SOTTO-COMPONENTI ---
+
+function MonthView({ currentDate, events, onDayClick, onDeleteEvent }: any) {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
     const daysInMonth = DateUtils.getDaysInMonth(year, month);
@@ -251,13 +264,13 @@ function MonthView({ currentDate, events, onDayClick, onDeleteEvent }) {
                 {days.map((date, index) => {
                     if (!date) return <div key={`empty-${index}`} className="bg-slate-50"></div>;
                     const dateStr = DateUtils.formatDate(date);
-                    const dayEvents = events.filter(e => e.date === dateStr);
+                    const dayEvents = events.filter((e: TurnoEvent) => e.date === dateStr);
                     const isToday = dateStr === DateUtils.formatDate(new Date());
                     return (
                         <div key={dateStr} onClick={() => onDayClick(dateStr)} className={`bg-white p-2 flex flex-col hover:bg-blue-50/50 transition cursor-pointer group min-h-[100px] ${isToday ? 'ring-2 ring-inset ring-blue-500' : ''}`}>
                             <span className={`text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full mb-1 ${isToday ? 'bg-blue-600 text-white' : 'text-slate-700 group-hover:text-blue-600'}`}>{date.getDate()}</span>
                             <div className="flex-1 overflow-y-auto no-scrollbar space-y-1">
-                                {dayEvents.map(evt => (
+                                {dayEvents.map((evt: TurnoEvent) => (
                                     <div key={evt.id} className={`${evt.color || 'bg-blue-100 text-blue-800'} text-[10px] md:text-xs p-1.5 rounded-xl relative group/event truncate shadow-sm`}>
                                         <span className="font-semibold">{evt.startTime}</span> {evt.title}
                                         {!evt.isReadOnly && <button onClick={(e) => onDeleteEvent(evt.id, e)} className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/event:opacity-100 bg-white/50 hover:bg-white rounded-full p-0.5 text-red-600 transition"><Icons.X /></button>}
@@ -272,7 +285,7 @@ function MonthView({ currentDate, events, onDayClick, onDeleteEvent }) {
     );
 }
 
-function WeekView({ currentDate, events, onTimeClick, onDeleteEvent }) {
+function WeekView({ currentDate, events, onTimeClick, onDeleteEvent }: any) {
     const startOfWeek = DateUtils.getStartOfWeek(currentDate);
     const weekDays = Array.from({length: 7}).map((_, i) => DateUtils.addDays(startOfWeek, i));
     const hours = Array.from({length: 24}).map((_, i) => i);
@@ -299,11 +312,11 @@ function WeekView({ currentDate, events, onTimeClick, onDeleteEvent }) {
                     </div>
                     {weekDays.map(date => {
                         const dateStr = DateUtils.formatDate(date);
-                        const dayEvents = events.filter(e => e.date === dateStr);
+                        const dayEvents = events.filter((e: TurnoEvent) => e.date === dateStr);
                         return (
                             <div key={dateStr} className="flex-1 border-r border-slate-200 last:border-r-0 relative group hover:bg-slate-50/50 transition-colors" onClick={() => onTimeClick(dateStr)}>
                                 {hours.map(h => <div key={h} className="time-grid-row border-slate-100 border-b"></div>)}
-                                {dayEvents.map(evt => {
+                                {dayEvents.map((evt: TurnoEvent) => {
                                     const start = DateUtils.parseTime(evt.startTime);
                                     const end = DateUtils.parseTime(evt.endTime);
                                     const top = (start.totalMinutes / 60) * ROW_HEIGHT;
@@ -325,7 +338,7 @@ function WeekView({ currentDate, events, onTimeClick, onDeleteEvent }) {
     );
 }
 
-function EventModal({ date, onClose, onSave }) {
+function EventModal({ date, onClose, onSave }: any) {
     const [title, setTitle] = useState('');
     const [startTime, setStartTime] = useState('09:00');
     const [endTime, setEndTime] = useState('14:00');
@@ -337,7 +350,7 @@ function EventModal({ date, onClose, onSave }) {
     ];
     return (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden p-6 space-y-5">
+            <div className="bg-white rounded-[2rem] shadow-2xl w-full max-md overflow-hidden p-6 space-y-5 max-w-md">
                 <div className="flex justify-between items-center"><h3 className="text-lg font-bold text-slate-800">Nuovo Turno</h3><button onClick={onClose}><Icons.X /></button></div>
                 <div className="flex flex-wrap gap-2">
                     {shiftPresets.map(p => <button key={p.label} type="button" onClick={() => {setTitle(p.label); setStartTime(p.start); setEndTime(p.end); setColor(p.color);}} className={`px-3 py-1.5 rounded-xl text-sm font-medium border ${title === p.label ? 'bg-blue-50 border-blue-200 text-blue-700' : 'border-slate-200'}`}>{p.label}</button>)}
@@ -356,7 +369,7 @@ function EventModal({ date, onClose, onSave }) {
     );
 }
 
-function SettingsModal({ urls, setUrls, onClose }) {
+function SettingsModal({ urls, setUrls, onClose }: any) {
     const [newUrl, setNewUrl] = useState('');
     return (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -366,14 +379,14 @@ function SettingsModal({ urls, setUrls, onClose }) {
                     <input type="url" value={newUrl} onChange={e => setNewUrl(e.target.value)} placeholder="URL .ics..." className="flex-1 border rounded-xl px-3 py-2 text-sm" />
                     <button onClick={() => { if(newUrl) { setUrls([...urls, newUrl]); setNewUrl(''); } }} className="bg-blue-600 text-white px-4 rounded-xl">Add</button>
                 </div>
-                <div className="space-y-2">{urls.map(u => <div key={u} className="flex justify-between bg-slate-50 p-2 rounded-lg text-xs truncate"><span>{u}</span><button onClick={() => setUrls(urls.filter(x => x !== u))} className="text-red-500">Elimina</button></div>)}</div>
+                <div className="space-y-2">{urls.map((u: string) => <div key={u} className="flex justify-between bg-slate-50 p-2 rounded-lg text-xs truncate"><span>{u}</span><button onClick={() => setUrls(urls.filter((x: string) => x !== u))} className="text-red-500">Elimina</button></div>)}</div>
             </div>
         </div>
     );
 }
 
 function WeatherSidebar() {
-    const [weather, setWeather] = useState(null);
+    const [weather, setWeather] = useState<any>(null);
     useEffect(() => {
         setTimeout(() => setWeather({ temp: '18°', condition: 'Soleggiato', location: 'Ghedi' }), 1000);
     }, []);
