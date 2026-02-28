@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useEffect } from 'react';
 
 // --- ICONE SVG (Inline per evitare dipendenze esterne) ---
