@@ -1,8 +1,13 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-/* * Mentore Docet: 
- * Questo file deve contenere SOLO codice CSS puro o direttive Tailwind.
- * MAI incollare logica React (.tsx) qui dentro, o Vercel bloccherà la build.
+/* * MENTORE DOCET: 
+ * Nella versione 4 di Tailwind, non si usano più le tre righe @tailwind.
+ * Basta questo import. Se vuoi aggiungere CSS personalizzato, fallo sotto.
  */
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+body {
+  @apply bg-slate-50 text-slate-900 antialiased;
+}
