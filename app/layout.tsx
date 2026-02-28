@@ -16,8 +16,9 @@ export const metadata: Metadata = {
   title: "Calendar Dashboard",
   description: "Professional Calendar Dashboard with Weather and Shift Management",
   manifest: "/manifest.json",
-  themeColor: "#1e293b",
-};
+export const viewport = {
+  themeColor: '#0f172a', // O qualsiasi colore ci fosse scritto prima
+}
 
 export default function RootLayout({
   children,
