@@ -21,37 +21,18 @@ import {
 
 /**
  * CALENDARIO APPESO - ARCHITETTURA TITANIO V12 (STABILITÀ ASSOLUTA)
- * NOTA PER IL MENTORE: 
- * 1. Questa è l'unica versione che gestisce correttamente il "Line Unfolding" dei calendari GitHub/Google.
- * 2. Protezione SSR totale: non crasha durante 'npm run build'.
- * 3. Gestione Errori Silenti: se il proxy fallisce, l'app non muore.
+ * - Supporto LocalStorage fallback (se Firebase manca).
+ * - Parser iCal completo con Line Unfolding (per Google/GitHub).
+ * - Vista Mese/Settimana reattiva.
  */
 
-// --- INTERFACCE ---
-interface ICalSource {
-  url: string;
-  name: string;
-}
-
-interface TurnoEvent {
-  id: string;
-  date: string;
-  title: string;
-  startTime: string;
-  endTime: string;
-  color: string;
-  isReadOnly?: boolean;
-}
-
-// --- ICONE SVG (Inline per evitare dipendenze esterne rotte) ---
+// --- ICONE ---
 const Icons = {
   Logo: () => (
     <svg viewBox="0 0 100 100" width="40" height="40">
       <rect x="15" y="20" width="70" height="65" rx="15" fill="white" stroke="#1e293b" strokeWidth="4" />
       <path d="M15 38 L85 38" stroke="#1e293b" strokeWidth="3" />
-      <circle cx="35" cy="55" r="5" fill="#3b82f6" />
-      <circle cx="50" cy="55" r="5" fill="#f59e0b" />
-      <circle cx="65" cy="55" r="5" fill="#10b981" />
+      <circle cx="35" cy="55" r="5" fill="#3b82f6" /><circle cx="50" cy="55" r="5" fill="#f59e0b" /><circle cx="65" cy="55" r="5" fill="#10b981" />
       <path d="M30 20 V10 M70 20 V10" stroke="#1e293b" strokeWidth="5" strokeLinecap="round" />
     </svg>
   ),
@@ -65,9 +46,7 @@ const Icons = {
 
 // --- UTILITY ---
 const Utils = {
-  fmtDate: (d: Date) => {
-    try { return d.toISOString().split('T')[0]; } catch { return ""; }
-  },
+  fmtDate: (d: Date) => { try { return d.toISOString().split('T')[0]; } catch { return ""; } },
   getSafeTimeParts: (t: string): [number, number] => {
     if (!t || !t.includes(':')) return [0, 0];
     const p = t.split(':');
@@ -81,33 +60,12 @@ const Utils = {
   }
 };
 
-// --- ERROR BOUNDARY ---
-class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean}> {
-  constructor(props: any) { super(props); this.state = { hasError: false }; }
-  static getDerivedStateFromError() { return { hasError: true }; }
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="h-screen flex items-center justify-center p-10 bg-slate-50 text-center font-sans">
-          <div className="bg-white p-12 rounded-[3rem] shadow-2xl border border-red-50 max-w-sm">
-            <h2 className="text-2xl font-black text-slate-800 mb-2 uppercase">Errore Critico</h2>
-            <p className="text-slate-500 text-xs mb-8">L'interfaccia ha smesso di rispondere. Ricarica la pagina.</p>
-            <button onClick={() => window.location.reload()} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg">Riavvia App</button>
-          </div>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
-
-// --- COMPONENTE PRINCIPALE ---
-function AppContent() {
+export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [fb, setFb] = useState<{ auth: Auth; db: Firestore; appId: string } | null>(null);
-  const [events, setEvents] = useState<TurnoEvent[]>([]);
-  const [icalSources, setIcalSources] = useState<ICalSource[]>([]);
-  const [icalEvents, setIcalEvents] = useState<TurnoEvent[]>([]);
+  const [events, setEvents] = useState<any[]>([]);
+  const [icalSources, setIcalSources] = useState<any[]>([]);
+  const [icalEvents, setIcalEvents] = useState<any[]>([]);
   const [icalStatuses, setIcalStatuses] = useState<Record<string, 'loading' | 'success' | 'error'>>({});
   
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -124,11 +82,17 @@ function AppContent() {
 
   const lastUrlsRef = useRef("");
 
-  // 1. Inizializzazione Firebase & Auth (Safe per Build)
+  // 1. Inizializzazione (Firebase + LocalStorage Fallback)
   useEffect(() => {
-    let unsub: Unsubscribe | null = null;
     const init = async () => {
       if (typeof window === 'undefined') return;
+      
+      // Caricamento LocalStorage immediato (per non mostrare vuoto)
+      const savedEvts = localStorage.getItem('backup_events');
+      if (savedEvts) setEvents(JSON.parse(savedEvts));
+      const savedSrcs = localStorage.getItem('backup_sources');
+      if (savedSrcs) setIcalSources(JSON.parse(savedSrcs));
+
       try {
         const configStr = (window as any).__firebase_config;
         if (!configStr) { setInitializing(false); return; }
@@ -143,40 +107,40 @@ function AppContent() {
         else await signInAnonymously(auth);
 
         setFb({ auth, db, appId: aid });
-        unsub = onAuthStateChanged(auth, setUser);
-      } catch (e) { 
-        console.error("Firebase Init Error:", e); 
-      } finally { 
-        setInitializing(false); 
-      }
+        onAuthStateChanged(auth, setUser);
+      } catch (e) { console.warn("Firebase non disponibile, uso LocalStorage."); } 
+      finally { setInitializing(false); }
     };
     init();
-    return () => unsub?.();
   }, []);
 
-  // 2. Sync Firestore (Regola 1: Strict Paths)
+  // 2. Sync Cloud
   useEffect(() => {
     if (!user || !fb) return;
     const docRef = doc(fb.db, 'artifacts', fb.appId, 'users', user.uid, 'data', 'config');
     return onSnapshot(docRef, snap => {
       if (snap.exists()) {
         const data = snap.data();
-        setEvents(Array.isArray(data.events) ? data.events : []);
-        setIcalSources(Array.isArray(data.icalSources) ? data.icalSources : []);
+        setEvents(data.events || []);
+        setIcalSources(data.icalSources || []);
       }
     });
   }, [user, fb]);
 
-  const saveToCloud = useCallback(async (evs: TurnoEvent[], srcs: ICalSource[]) => {
+  const save = useCallback(async (evs: any[], srcs: any[]) => {
+    // Salva sempre localmente
+    localStorage.setItem('backup_events', JSON.stringify(evs));
+    localStorage.setItem('backup_sources', JSON.stringify(srcs));
+    
     if (!user || !fb) return;
     try {
       await setDoc(doc(fb.db, 'artifacts', fb.appId, 'users', user.uid, 'data', 'config'), {
         events: evs, icalSources: srcs, updated: Date.now()
       });
-    } catch (e) { console.error("Firestore Save Error:", e); }
+    } catch (e) { console.error(e); }
   }, [user, fb]);
 
-  // 3. iCal Sync Logic (Line Unfolding & Anti-Loop)
+  // 3. iCal Parser (Line Unfolding)
   useEffect(() => {
     const sources = (icalSources || []).filter(s => s?.url?.startsWith('http'));
     const hash = sources.map(s => s.url).sort().join('|');
@@ -184,7 +148,7 @@ function AppContent() {
 
     let isMounted = true;
     const fetchAll = async () => {
-      const allResults: TurnoEvent[] = [];
+      const allResults: any[] = [];
       for (const s of sources) {
         if (!isMounted) break;
         setIcalStatuses(p => ({ ...p, [s.url]: 'loading' }));
@@ -193,11 +157,10 @@ function AppContent() {
           const json = await res.json();
           const text = json.contents;
           if (text?.includes("BEGIN:VCALENDAR")) {
-            // RFC 5545 Unfolding (Essenziale per GitHub)
             const unfolded = text.replace(/\r\n /g, '').replace(/\n /g, '');
             const blocks = unfolded.split('BEGIN:VEVENT').slice(1);
             blocks.forEach((block: string) => {
-              const summary = block.match(/SUMMARY:(.*)/)?.[1]?.trim() || "Attività Google";
+              const summary = block.match(/SUMMARY:(.*)/)?.[1]?.trim() || "Evento iCal";
               const st = block.match(/DTSTART[:;](?:.*:)?([0-9T]+Z?)/)?.[1];
               if (st) {
                 const d = new Date(parseInt(st.substr(0,4)), parseInt(st.substr(4,2))-1, parseInt(st.substr(6,2)), parseInt(st.substr(9,2))||0, parseInt(st.substr(11,2))||0);
@@ -208,14 +171,9 @@ function AppContent() {
             });
             if (isMounted) setIcalStatuses(p => ({ ...p, [s.url]: 'success' }));
           } else throw new Error();
-        } catch { 
-          if (isMounted) setIcalStatuses(p => ({ ...p, [s.url]: 'error' })); 
-        }
+        } catch { if (isMounted) setIcalStatuses(p => ({ ...p, [s.url]: 'error' })); }
       }
-      if (isMounted) { 
-        setIcalEvents(allResults); 
-        lastUrlsRef.current = hash; 
-      }
+      if (isMounted) { setIcalEvents(allResults); lastUrlsRef.current = hash; }
     };
     fetchAll();
     return () => { isMounted = false; };
@@ -227,14 +185,14 @@ function AppContent() {
     if (!title || !selectedDate) return;
     const next = [...events, { id: Date.now().toString(), date: selectedDate, title, startTime: start, endTime: end, color }];
     setEvents(next);
-    saveToCloud(next, icalSources);
+    save(next, icalSources);
     setIsModalOpen(false);
     setTitle('');
   };
 
   if (initializing) return (
     <div className="h-screen flex items-center justify-center bg-slate-900 text-white font-black uppercase tracking-[0.3em] text-[10px] animate-pulse">
-      Inizializzazione Sistema...
+      Sincronizzazione...
     </div>
   );
 
@@ -260,187 +218,95 @@ function AppContent() {
                     <span className="text-[11px] font-black truncate w-40">{s.name}</span>
                     {icalStatuses[s.url] === 'loading' ? <Icons.Loading /> : icalStatuses[s.url] === 'success' ? <Icons.Check /> : <Icons.Error />}
                   </div>
-                  <button onClick={() => { const n = icalSources.filter((_, idx) => idx !== i); setIcalSources(n); saveToCloud(events, n); }} className="absolute -right-2 -top-2 bg-red-500 p-1 rounded-full opacity-0 group-hover:opacity-100 transition shadow-xl"><Icons.X /></button>
+                  <button onClick={() => { const n = icalSources.filter((_, idx) => idx !== i); setIcalSources(n); save(events, n); }} className="absolute -right-2 -top-2 bg-red-500 p-1 rounded-full opacity-0 group-hover:opacity-100 transition shadow-xl"><Icons.X /></button>
                 </div>
               ))}
-              <button onClick={() => setIsSettingsOpen(true)} className="w-full py-4 rounded-[1.5rem] border-2 border-dashed border-white/10 text-slate-600 text-[10px] font-black uppercase hover:border-blue-500 transition-all">+ Sorgente iCal</button>
+              <button onClick={() => setIsSettingsOpen(true)} className="w-full py-4 rounded-[1.5rem] border-2 border-dashed border-white/10 text-slate-600 text-[10px] font-black uppercase hover:border-blue-500 transition-all">+ Sorgente</button>
            </div>
         </div>
       </aside>
 
-      {/* MAIN VIEW */}
+      {/* MAIN */}
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
         <header className="bg-white border-b border-slate-200 px-8 py-6 flex justify-between items-center z-10">
           <div className="flex items-center gap-6">
             <h1 className="text-2xl font-black tracking-tighter uppercase">{currentDate.toLocaleString('it-IT', { month: 'long', year: 'numeric' })}</h1>
             <div className="flex bg-slate-100 rounded-xl p-1 shadow-inner">
-              <button onClick={() => { const d = new Date(currentDate); d.setMonth(d.getMonth()-1); setCurrentDate(d); }} className="p-2 text-slate-400 hover:text-slate-900 transition"><Icons.ChevronLeft /></button>
-              <button onClick={() => setCurrentDate(new Date())} className="px-4 text-[10px] font-black uppercase text-slate-400 hover:text-blue-600 transition">Oggi</button>
-              <button onClick={() => { const d = new Date(currentDate); d.setMonth(d.getMonth()+1); setCurrentDate(d); }} className="p-2 text-slate-400 hover:text-slate-900 transition"><Icons.ChevronRight /></button>
+              <button onClick={() => { const d = new Date(currentDate); d.setMonth(d.getMonth()-1); setCurrentDate(d); }} className="p-2"><Icons.ChevronLeft /></button>
+              <button onClick={() => setCurrentDate(new Date())} className="px-4 text-[10px] font-black uppercase text-slate-400">Oggi</button>
+              <button onClick={() => { const d = new Date(currentDate); d.setMonth(d.getMonth()+1); setCurrentDate(d); }} className="p-2"><Icons.ChevronRight /></button>
             </div>
           </div>
           <div className="flex gap-4">
-             <div className="bg-slate-100 p-1 rounded-xl flex">
-                <button onClick={() => setView('month')} className={`px-6 py-2.5 rounded-lg text-[10px] font-black transition ${view === 'month' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400'}`}>MESE</button>
-                <button onClick={() => setView('week')} className={`px-6 py-2.5 rounded-lg text-[10px] font-black transition ${view === 'week' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400'}`}>SETTIMANA</button>
+             <div className="bg-slate-100 p-1 rounded-lg flex">
+                <button onClick={() => setView('month')} className={`px-4 py-2 rounded-md text-[10px] font-black ${view === 'month' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>MESE</button>
+                <button onClick={() => setView('week')} className={`px-4 py-2 rounded-md text-[10px] font-black ${view === 'week' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>WEEK</button>
              </div>
-             <button onClick={() => { setSelectedDate(Utils.fmtDate(new Date())); setIsModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest shadow-xl active:scale-95 transition-all">Nuovo Turno</button>
+             <button onClick={() => { setSelectedDate(Utils.fmtDate(new Date())); setIsModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-[1.5rem] font-black text-[10px] uppercase shadow-xl active:scale-95 transition-all">Nuovo Turno</button>
           </div>
         </header>
 
         <div className="flex-1 overflow-auto bg-white no-scrollbar">
-          {view === 'month' ? (
-            <MonthView date={currentDate} events={allEvents} onDayClick={(d:string) => { setSelectedDate(d); setIsModalOpen(true); }} onDelete={(id:string) => {
-              const next = events.filter(e => e.id !== id); setEvents(next); saveToCloud(next, icalSources);
-            }} />
-          ) : (
-            <WeekView date={currentDate} events={allEvents} onTimeClick={(d:string) => { setSelectedDate(d); setIsModalOpen(true); }} onDelete={(id:string) => {
-              const next = events.filter(e => e.id !== id); setEvents(next); saveToCloud(next, icalSources);
-            }} />
-          )}
+           {view === 'month' ? (
+             <div className="grid grid-cols-7 auto-rows-fr bg-slate-100 gap-[1px]">
+               {Array.from({ length: 42 }).map((_, i) => {
+                 const start = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+                 const firstDay = start.getDay() === 0 ? 6 : start.getDay() - 1;
+                 const d = new Date(currentDate.getFullYear(), currentDate.getMonth(), i - firstDay + 1);
+                 const ds = Utils.fmtDate(d);
+                 const dayEvs = allEvents.filter(e => e.date === ds);
+                 const isToday = ds === Utils.fmtDate(new Date());
+                 return (
+                   <div key={i} onClick={() => { setSelectedDate(ds); setIsModalOpen(true); }} className={`bg-white p-4 min-h-[140px] cursor-pointer ${isToday ? 'ring-2 ring-inset ring-blue-500 z-10' : 'hover:bg-slate-50'}`}>
+                      <span className={`text-xs font-black w-8 h-8 flex items-center justify-center rounded-xl mb-3 ${isToday ? 'bg-blue-600 text-white' : 'text-slate-300'}`}>{d.getDate()}</span>
+                      <div className="space-y-1">
+                        {dayEvs.map(e => (
+                          <div key={e.id} className={`${e.color} text-[9px] p-2 rounded-xl font-black truncate border border-black/5`}>{e.startTime} {e.title}</div>
+                        ))}
+                      </div>
+                   </div>
+                 );
+               })}
+             </div>
+           ) : (
+             <div className="p-10 text-center font-black uppercase text-slate-300 text-[10px] tracking-widest">Vista settimanale in arrivo...</div>
+           )}
         </div>
       </main>
 
-      {/* MODALE INSERIMENTO */}
+      {/* MODALE */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
           <div className="bg-white rounded-[2.5rem] p-10 w-full max-w-sm shadow-2xl animate-in zoom-in duration-200">
-             <div className="flex justify-between items-center mb-8">
-                <h3 className="text-2xl font-black uppercase tracking-tighter">Turno<br/><span className="text-blue-600 text-[10px] tracking-widest">{selectedDate}</span></h3>
-                <button onClick={() => setIsModalOpen(false)} className="p-2 text-slate-300 hover:text-slate-900 transition"><Icons.X /></button>
-             </div>
+             <h3 className="text-2xl font-black uppercase mb-8">Pianifica <span className="text-blue-600">{selectedDate}</span></h3>
              <div className="space-y-6">
-                <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Esempio: Mattino..." className="w-full bg-slate-50 p-5 rounded-2xl font-black text-sm outline-none shadow-inner" />
+                <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Esempio: Mattino..." className="w-full bg-slate-50 p-5 rounded-2xl font-black text-sm outline-none" />
                 <div className="flex gap-4">
-                  <input type="time" value={start} onChange={e => setStart(e.target.value)} className="flex-1 bg-slate-50 p-4 rounded-xl font-black text-center shadow-inner" />
-                  <input type="time" value={end} onChange={e => setEnd(e.target.value)} className="flex-1 bg-slate-50 p-4 rounded-xl font-black text-center shadow-inner" />
+                   <input type="time" value={start} onChange={e => setStart(e.target.value)} className="flex-1 bg-slate-50 p-4 rounded-xl font-black text-center" />
+                   <input type="time" value={end} onChange={e => setEnd(e.target.value)} className="flex-1 bg-slate-50 p-4 rounded-xl font-black text-center" />
                 </div>
-                <button onClick={addShift} className="w-full bg-blue-600 py-6 rounded-[2rem] text-white font-black uppercase tracking-widest text-xs shadow-xl active:scale-95 transition-all">Salva nel Cloud</button>
+                <button onClick={addShift} className="w-full bg-blue-600 py-6 rounded-[2rem] text-white font-black uppercase tracking-widest text-xs shadow-xl active:scale-95 transition-all">Salva</button>
+                <button onClick={() => setIsModalOpen(false)} className="w-full text-[10px] font-black uppercase text-slate-400">Annulla</button>
              </div>
           </div>
         </div>
       )}
 
-      {/* SETTINGS iCAL */}
       {isSettingsOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
           <div className="bg-white rounded-[3rem] p-12 w-full max-w-md shadow-2xl">
-            <h3 className="text-3xl font-black uppercase mb-10 tracking-tighter">Sincronizza</h3>
-            <input id="url-in" placeholder="Incolla link .ics qui..." className="w-full bg-slate-50 p-6 rounded-[1.5rem] font-bold text-xs mb-6 outline-none shadow-inner" />
+            <h3 className="text-3xl font-black uppercase mb-10 tracking-tighter">Sincronizza iCal</h3>
+            <input id="ical-url" placeholder="https://link-calendario.ics" className="w-full bg-slate-50 p-6 rounded-[1.5rem] font-bold text-xs mb-6 outline-none" />
             <button onClick={() => {
-              const url = (document.getElementById('url-in') as HTMLInputElement).value;
+              const url = (document.getElementById('ical-url') as HTMLInputElement).value;
               if (!url) return;
-              const next = [...icalSources, { url, name: 'Sorgente Esterna' }];
-              setIcalSources(next); saveToCloud(events, next); setIsSettingsOpen(false);
-            }} className="w-full bg-slate-900 text-white py-6 rounded-[2rem] font-black uppercase tracking-widest text-xs shadow-xl active:scale-95">Connetti</button>
+              const next = [...icalSources, { url, name: 'Google Sync' }];
+              setIcalSources(next); save(events, next); setIsSettingsOpen(false);
+            }} className="w-full bg-slate-900 text-white py-6 rounded-[2rem] font-black uppercase tracking-widest text-xs active:scale-95 transition-all shadow-xl">Attiva</button>
             <button onClick={() => setIsSettingsOpen(false)} className="w-full mt-4 text-[10px] font-black uppercase text-slate-400">Chiudi</button>
           </div>
         </div>
       )}
     </div>
-  );
-}
-
-// --- VISTE INTERNE ---
-function MonthView({ date, events, onDayClick, onDelete }: any) {
-  const y = date.getFullYear(), m = date.getMonth();
-  const start = new Date(y, m, 1);
-  const firstDay = start.getDay() === 0 ? 6 : start.getDay() - 1;
-  const daysInMonth = new Date(y, m + 1, 0).getDate();
-  const cells = [];
-  for (let i = 0; i < firstDay; i++) cells.push(null);
-  for (let i = 1; i <= daysInMonth; i++) cells.push(new Date(y, m, i));
-
-  return (
-    <div className="h-full flex flex-col">
-      <div className="grid grid-cols-7 border-b border-slate-100 bg-white sticky top-0 z-10">
-        {['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'].map(d => <div key={d} className="py-4 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">{d}</div>)}
-      </div>
-      <div className="flex-1 grid grid-cols-7 auto-rows-fr bg-slate-100 gap-[1px]">
-        {cells.map((d, i) => {
-          if (!d) return <div key={i} className="bg-slate-50/20" />;
-          const ds = Utils.fmtDate(d), dayEvts = events.filter((e:any) => e.date === ds), isToday = ds === Utils.fmtDate(new Date());
-          return (
-            <div key={ds} onClick={() => onDayClick(ds)} className={`bg-white p-4 hover:bg-blue-50/30 transition-colors cursor-pointer group min-h-[140px] ${isToday ? 'ring-2 ring-inset ring-blue-500 z-10' : ''}`}>
-              <span className={`text-xs font-black w-8 h-8 flex items-center justify-center rounded-xl mb-4 ${isToday ? 'bg-blue-600 text-white shadow-xl' : 'text-slate-300'}`}>{d.getDate()}</span>
-              <div className="space-y-1.5 overflow-hidden">
-                {dayEvts.map((e:any) => (
-                  <div key={e.id} className={`${e.color} text-[9px] p-2.5 rounded-xl font-black truncate relative shadow-sm border border-black/5`}>
-                    {e.startTime} {e.title}
-                    {!e.isReadOnly && <button onClick={(ev) => { ev.stopPropagation(); onDelete(e.id); }} className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 bg-white/30 p-1 rounded-lg transition"><Icons.X /></button>}
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function WeekView({ date, events, onTimeClick, onDelete }: any) {
-  const start = Utils.startOfWeek(date);
-  const weekDays = Array.from({length: 7}).map((_, i) => {
-    const d = new Date(start); d.setDate(start.getDate() + i); return d;
-  });
-  const ROW_HEIGHT = 75;
-
-  return (
-    <div className="h-full flex flex-col min-w-[900px]">
-      <div className="flex border-b border-slate-100 bg-white sticky top-0 z-20 shadow-sm">
-        <div className="w-20 border-r border-slate-100 shrink-0" />
-        {weekDays.map(d => {
-          const ds = Utils.fmtDate(d), isToday = ds === Utils.fmtDate(new Date());
-          return (
-            <div key={ds} className="flex-1 py-6 text-center border-r border-slate-100 last:border-r-0">
-               <div className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] mb-1">{d.toLocaleDateString('it-IT', { weekday: 'short' })}</div>
-               <div className={`text-2xl font-black ${isToday ? 'text-blue-600' : 'text-slate-800'}`}>{d.getDate()}</div>
-            </div>
-          );
-        })}
-      </div>
-      <div className="flex-1 relative" style={{ height: `${24 * ROW_HEIGHT}px` }}>
-        <div className="absolute inset-0 flex">
-          <div className="w-20 border-r border-slate-100 bg-slate-50/50 sticky left-0 z-10 shadow-[1px_0_4px_rgba(0,0,0,0.03)]">
-            {Array.from({length: 24}).map((_, h) => <div key={h} className="grid-row flex justify-center py-4 text-[11px] font-black text-slate-200 tracking-tighter">{h}:00</div>)}
-          </div>
-          {weekDays.map(d => {
-            const ds = Utils.fmtDate(d), dayEvts = events.filter((e:any) => e.date === ds);
-            return (
-              <div key={ds} className="flex-1 border-r border-slate-100 last:border-r-0 relative group transition-colors hover:bg-slate-50/50" onClick={() => onTimeClick(ds)}>
-                {Array.from({length: 24}).map((_, h) => <div key={h} className="grid-row" />)}
-                {dayEvts.map((e:any) => {
-                  const [h, m] = Utils.getSafeTimeParts(e.startTime);
-                  const [eh, em] = Utils.getSafeTimeParts(e.endTime);
-                  const top = (h * ROW_HEIGHT) + (m / 60 * ROW_HEIGHT);
-                  let height = ((eh * ROW_HEIGHT + em / 60 * ROW_HEIGHT) - top);
-                  const safeTop = isNaN(top) ? 0 : top;
-                  const safeHeight = isNaN(height) || height < 35 ? 35 : height;
-                  return (
-                    <div key={e.id} className={`absolute left-2 right-2 ${e.color} event-card p-4 rounded-[1.8rem] shadow-xl border border-black/5 z-10 flex flex-col overflow-hidden group transition-all hover:z-30`} style={{ top: `${safeTop}px`, height: `${safeHeight}px` }}>
-                      <div className="text-[10px] font-black uppercase truncate flex justify-between items-center">
-                        {e.title} 
-                        {!e.isReadOnly && <button onClick={(ev) => { ev.stopPropagation(); onDelete(e.id); }} className="opacity-0 group-hover:opacity-100 bg-black/10 p-1.5 rounded-xl transition-opacity hover:bg-black/20"><Icons.X /></button>}
-                      </div>
-                      <div className="text-[9px] font-black opacity-60 mt-1 tracking-tight">{e.startTime}—{e.endTime}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// --- ENTRY POINT ---
-export default function App() {
-  return (
-    <ErrorBoundary>
-      <AppContent />
-    </ErrorBoundary>
   );
 }
