@@ -1,14 +1,27 @@
 @import "tailwindcss";
 
 /**
- * CALENDARIO APPESO - CORE STYLING
+ * CALENDARIO APPESO - CORE STYLING (V12)
  * MENTORE DOCET: 
- * In Tailwind 4, questo singolo import gestisce tutto. 
- * Non aggiungere file tailwind.config.js o postcss.config.js a meno che 
- * tu non voglia veder fallire di nuovo la build su GitHub.
+ * In Tailwind 4, questo singolo import gestisce tutto il caricamento dei plugin. 
+ * Se la build fallisce ancora, è perché nel tuo repository GitHub sono rimasti 
+ * dei "cadaveri": cancella tailwind.config.js e postcss.config.js/mjs. 
+ * Devono sparire dalla circolazione!
  */
 
 @layer base {
+  /* Reset e stili base per un'interfaccia premium */
+  :root {
+    --foreground-rgb: 15, 23, 42;
+    --background-start-rgb: 248, 250, 252;
+    --background-end-rgb: 255, 255, 255;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased selection:bg-blue-100;
+  }
+
+  /* Utility per nascondere la scrollbar (cross-browser) */
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
@@ -17,24 +30,40 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
-
-  body {
-    @apply bg-slate-50 text-slate-900 antialiased;
-  }
 }
 
-/* Fallback per la griglia oraria se Tailwind non carica immediatamente */
+/* Griglia oraria per la vista settimanale */
 .grid-row {
   height: 75px;
   border-bottom: 1px solid #f1f5f9;
 }
 
-/* Animazioni per i modali */
+/* Animazioni fluide per i modali e le interazioni */
 @keyframes zoom-in {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
+  from { 
+    opacity: 0; 
+    transform: scale(0.95) translateY(10px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: scale(1) translateY(0); 
+  }
 }
 
 .animate-in {
-  animation: zoom-in 0.2s ease-out forwards;
+  animation: zoom-in 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+/* Effetto vetro per la sidebar o i popup */
+.glass {
+  @apply bg-white/80 backdrop-blur-md border border-white/20;
+}
+
+/* Card degli eventi con profondità visiva */
+.event-card {
+  @apply shadow-sm border border-black/5 transition-all duration-200;
+}
+
+.event-card:hover {
+  @apply shadow-lg -translate-y-1 z-30;
 }
