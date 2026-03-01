@@ -1,25 +1,40 @@
-import type { NextConfig } from "next";
+@import "tailwindcss";
 
-const nextConfig: NextConfig = {
-  /* * MENTORE: Questa è la configurazione "Disperata". 
-   * Se GitHub ti dà ancora la X rossa, il problema è nel package.json o nei file duplicati.
-   */
-  typescript: {
-    // Forza la build ignorando gli errori di tipo
-    ignoreBuildErrors: true,
-  },
-  eslint: {
-    // Forza la build ignorando gli errori di formattazione
-    ignoreDuringBuilds: true,
-  },
-  images: {
-    // Evita crash dovuti alla mancanza di librerie di ottimizzazione immagini (come sharp)
-    unoptimized: true,
-  },
-  // Disabilita i controlli rigorosi che potrebbero bloccare l'ambiente di anteprima
-  reactStrictMode: false,
-  // Assicura che la build non cerchi di generare pagine statiche se ci sono errori runtime
-  trailingSlash: true,
-};
+/**
+ * CALENDARIO APPESO - CORE STYLING
+ * MENTORE DOCET: 
+ * In Tailwind 4, questo singolo import gestisce tutto. 
+ * Non aggiungere file tailwind.config.js o postcss.config.js a meno che 
+ * tu non voglia veder fallire di nuovo la build su GitHub.
+ */
 
-export default nextConfig;
+@layer base {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased;
+  }
+}
+
+/* Fallback per la griglia oraria se Tailwind non carica immediatamente */
+.grid-row {
+  height: 75px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+/* Animazioni per i modali */
+@keyframes zoom-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-in {
+  animation: zoom-in 0.2s ease-out forwards;
+}
