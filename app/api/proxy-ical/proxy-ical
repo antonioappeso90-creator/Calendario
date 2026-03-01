@@ -1,0 +1,45 @@
+import { NextRequest, NextResponse } from 'next/server';
+
+/**
+ * PROXY ICAL V4 - PROTOCOLLO EXECUTIVE
+ * PERCORSO: app/api/proxy-ical/route.ts
+ * * MENTORE DOCET: Questo file deve stare esattamente in quel percorso.
+ * Serve a scaricare i dati da Google fingendo di essere un browser reale,
+ * evitando i blocchi di sicurezza (CORS) che Safari ti impone.
+ */
+
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const url = searchParams.get('url');
+
+  if (!url) {
+    return NextResponse.json({ error: 'URL mancante' }, { status: 400 });
+  }
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/calendar, text/plain'
+      },
+      // Evitiamo che Google ci riconosca come un bot ripetitivo
+      next: { revalidate: 0 } 
+    });
+
+    if (!response.ok) {
+      return NextResponse.json({ error: `Google Error: ${response.status}` }, { status: response.status });
+    }
+    
+    const data = await response.text();
+    
+    return new NextResponse(data, {
+      headers: {
+        'Content-Type': 'text/calendar',
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'no-store'
+      },
+    });
+  } catch (error) {
+    return NextResponse.json({ error: 'Connessione al server Google fallita' }, { status: 500 });
+  }
+}
