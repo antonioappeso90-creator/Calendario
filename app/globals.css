@@ -1,50 +1,35 @@
-@import "tailwindcss"
+@import "tailwindcss";
 
 /**
- * CALENDARIO APPESO - CORE STYLING (V13 - EMERGENCY CLEAN)
+ * CALENDARIO APPESO - CORE STYLING (V16)
  * MENTORE DOCET: 
- * Se la build fallisce qui, DEVI controllare il tuo package.json.
- * Deve esserci scritto "tailwindcss": "^4.0.0". 
- * Se c'è scritto "3.x", cancella quell'import e usa le vecchie direttive:
- * @tailwind base; @tailwind components; @tailwind utilities;
+ * Se vedi ancora tutto bianco e nero, significa che il tuo Vercel 
+ * non sta leggendo il file 'postcss.config.mjs'. 
+ * Assicurati che quel file sia nella root!
  */
+
+@theme {
+  --font-sans: "Inter", "Segoe UI", sans-serif;
+}
 
 @layer base {
   body {
     @apply bg-slate-50 text-slate-900 antialiased;
   }
+}
 
-  /* Utility per nascondere la scrollbar ovunque */
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
-  .no-scrollbar::-webkit-scrollbar {
-    display: none;
-  }
 }
 
-/* Griglia per la vista settimanale */
+/* Griglia per la vista settimanale/mensile */
 .grid-row {
   height: 75px;
   border-bottom: 1px solid #f1f5f9;
-}
-
-/* Animazione per i modali (Zoom fluido) */
-@keyframes modal-zoom {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
-}
-
-.animate-in {
-  animation: modal-zoom 0.2s ease-out forwards;
-}
-
-/* Card degli eventi */
-.event-card {
-  @apply shadow-sm border border-black/5 transition-all;
-}
-
-.event-card:hover {
-  @apply shadow-md -translate-y-0.5;
 }
