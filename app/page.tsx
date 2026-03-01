@@ -21,7 +21,7 @@ import {
 /**
  * CALENDARIO APPESO - ARCHITETTURA TITANIO V20.1 (STABILIZZATA)
  * MENTORE DOCET: 
- * - Risolti Script Error e Path Error sanificando l'appId.
+ * - Preset aggiornati: Mattino (09-14), Pomeriggio (14.30-19.30), Riposo.
  * - Sincronizzazione multi-dispositivo tramite Firestore.
  * - Gestione Multi-Sorgente iCal con indicatori di stato.
  */
@@ -316,7 +316,7 @@ export default function App() {
         </div>
       </main>
 
-      {/* MODALE PRESETS RAPIDI */}
+      {/* MODALE PRESETS RAPIDI AGGIORNATI */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xl z-[100] flex items-center justify-center p-6 animate-in fade-in duration-300">
           <div className="bg-white rounded-[3.5rem] p-12 w-full max-sm shadow-2xl animate-modal overflow-hidden">
@@ -325,17 +325,17 @@ export default function App() {
              </h3>
              
              <div className="space-y-4">
-                <button onClick={() => addShift({title: 'Mattino', start: '07:00', end: '14:00', color: 'bg-orange-500 text-white'})} className="w-full bg-slate-50 hover:bg-orange-50 p-6 rounded-[2rem] flex items-center justify-between group transition-all border border-slate-100 hover:border-orange-200 shadow-sm">
+                <button onClick={() => addShift({title: 'Mattino', start: '09:00', end: '14:00', color: 'bg-orange-500 text-white'})} className="w-full bg-slate-50 hover:bg-orange-50 p-6 rounded-[2rem] flex items-center justify-between group transition-all border border-slate-100 hover:border-orange-200 shadow-sm">
                   <span className="text-xs font-black uppercase text-slate-700">🌅 Mattino</span>
-                  <span className="text-[9px] font-bold text-slate-400">07 - 14</span>
+                  <span className="text-[9px] font-bold text-slate-400">09 - 14</span>
                 </button>
-                <button onClick={() => addShift({title: 'Pomeriggio', start: '14:00', end: '22:00', color: 'bg-blue-600 text-white'})} className="w-full bg-slate-50 hover:bg-blue-50 p-6 rounded-[2rem] flex items-center justify-between group transition-all border border-slate-100 hover:border-blue-200 shadow-sm">
+                <button onClick={() => addShift({title: 'Pomeriggio', start: '14:30', end: '19:30', color: 'bg-blue-600 text-white'})} className="w-full bg-slate-50 hover:bg-blue-50 p-6 rounded-[2rem] flex items-center justify-between group transition-all border border-slate-100 hover:border-blue-200 shadow-sm">
                   <span className="text-xs font-black uppercase text-slate-700">☀️ Pomeriggio</span>
-                  <span className="text-[9px] font-bold text-slate-400">14 - 22</span>
+                  <span className="text-[9px] font-bold text-slate-400">14:30 - 19:30</span>
                 </button>
-                <button onClick={() => addShift({title: 'Notte', start: '22:00', end: '07:00', color: 'bg-indigo-900 text-white'})} className="w-full bg-slate-50 hover:bg-indigo-50 p-6 rounded-[2rem] flex items-center justify-between group transition-all border border-slate-100 hover:border-indigo-200 shadow-sm">
-                  <span className="text-xs font-black uppercase text-slate-700">🌙 Notte</span>
-                  <span className="text-[9px] font-bold text-slate-400">22 - 07</span>
+                <button onClick={() => addShift({title: 'Riposo', start: '00:00', end: '23:59', color: 'bg-emerald-500 text-white'})} className="w-full bg-slate-50 hover:bg-emerald-50 p-6 rounded-[2rem] flex items-center justify-between group transition-all border border-slate-100 hover:border-emerald-200 shadow-sm">
+                  <span className="text-xs font-black uppercase text-slate-700">🌴 Riposo</span>
+                  <span className="text-[9px] font-bold text-slate-400">Giorno Libero</span>
                 </button>
                 
                 <div className="pt-8 mt-4 border-t border-slate-100 text-center">
