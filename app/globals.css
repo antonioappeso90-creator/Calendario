@@ -1,30 +1,40 @@
 @import "tailwindcss";
 
 /**
- * CALENDARIO APPESO - CORE STYLING (V16)
+ * CALENDARIO APPESO - CORE STYLING (V17)
  * MENTORE DOCET: 
- * Se vedi ancora tutto bianco e nero, significa che il tuo Vercel 
- * non sta leggendo il file 'postcss.config.mjs'. 
- * Assicurati che quel file sia nella root!
+ * Ho pulito ulteriormente i layer. Tailwind 4 è potente, ma se scrivi 
+ * CSS sporco, lui non può salvarti la faccia.
  */
 
 @theme {
   --font-sans: "Inter", "Segoe UI", sans-serif;
+  --radius-xl: 1.5rem;
+  --radius-2xl: 2rem;
 }
 
 @layer base {
   body {
-    @apply bg-slate-50 text-slate-900 antialiased;
+    @apply bg-slate-50 text-slate-900 antialiased selection:bg-blue-100;
+  }
+
+  /* Reset scrollbar per un look premium */
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
   }
 }
 
 @layer utilities {
-  .no-scrollbar::-webkit-scrollbar {
-    display: none;
+  .glass {
+    @apply bg-white/10 backdrop-blur-xl border border-white/20 shadow-2xl;
   }
-  .no-scrollbar {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
+  
+  .glass-dark {
+    @apply bg-slate-900/40 backdrop-blur-2xl border border-white/5 shadow-2xl;
   }
 }
 
@@ -32,4 +42,14 @@
 .grid-row {
   height: 75px;
   border-bottom: 1px solid #f1f5f9;
+}
+
+/* Animazioni fluide */
+@keyframes modal-in {
+  from { opacity: 0; transform: scale(0.95) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.animate-modal {
+  animation: modal-in 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
 }
