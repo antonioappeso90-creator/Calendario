@@ -1,69 +1,50 @@
 @import "tailwindcss";
 
 /**
- * CALENDARIO APPESO - CORE STYLING (V12)
+ * CALENDARIO APPESO - CORE STYLING (V13 - EMERGENCY CLEAN)
  * MENTORE DOCET: 
- * In Tailwind 4, questo singolo import gestisce tutto il caricamento dei plugin. 
- * Se la build fallisce ancora, è perché nel tuo repository GitHub sono rimasti 
- * dei "cadaveri": cancella tailwind.config.js e postcss.config.js/mjs. 
- * Devono sparire dalla circolazione!
+ * Se la build fallisce qui, DEVI controllare il tuo package.json.
+ * Deve esserci scritto "tailwindcss": "^4.0.0". 
+ * Se c'è scritto "3.x", cancella quell'import e usa le vecchie direttive:
+ * @tailwind base; @tailwind components; @tailwind utilities;
  */
 
 @layer base {
-  /* Reset e stili base per un'interfaccia premium */
-  :root {
-    --foreground-rgb: 15, 23, 42;
-    --background-start-rgb: 248, 250, 252;
-    --background-end-rgb: 255, 255, 255;
-  }
-
   body {
-    @apply bg-slate-50 text-slate-900 antialiased selection:bg-blue-100;
+    @apply bg-slate-50 text-slate-900 antialiased;
   }
 
-  /* Utility per nascondere la scrollbar (cross-browser) */
-  .no-scrollbar::-webkit-scrollbar {
-    display: none;
-  }
-  
+  /* Utility per nascondere la scrollbar ovunque */
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
 }
 
-/* Griglia oraria per la vista settimanale */
+/* Griglia per la vista settimanale */
 .grid-row {
   height: 75px;
   border-bottom: 1px solid #f1f5f9;
 }
 
-/* Animazioni fluide per i modali e le interazioni */
-@keyframes zoom-in {
-  from { 
-    opacity: 0; 
-    transform: scale(0.95) translateY(10px); 
-  }
-  to { 
-    opacity: 1; 
-    transform: scale(1) translateY(0); 
-  }
+/* Animazione per i modali (Zoom fluido) */
+@keyframes modal-zoom {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
 }
 
 .animate-in {
-  animation: zoom-in 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  animation: modal-zoom 0.2s ease-out forwards;
 }
 
-/* Effetto vetro per la sidebar o i popup */
-.glass {
-  @apply bg-white/80 backdrop-blur-md border border-white/20;
-}
-
-/* Card degli eventi con profondità visiva */
+/* Card degli eventi */
 .event-card {
-  @apply shadow-sm border border-black/5 transition-all duration-200;
+  @apply shadow-sm border border-black/5 transition-all;
 }
 
 .event-card:hover {
-  @apply shadow-lg -translate-y-1 z-30;
+  @apply shadow-md -translate-y-0.5;
 }
