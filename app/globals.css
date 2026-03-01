@@ -1,16 +1,25 @@
 @import "tailwindcss";
 
 /**
- * CALENDARIO APPESO - CORE STYLING (V17)
+ * CALENDARIO APPESO - CORE STYLING PREMIUM (V18)
  * MENTORE DOCET: 
- * Ho pulito ulteriormente i layer. Tailwind 4 è potente, ma se scrivi 
- * CSS sporco, lui non può salvarti la faccia.
+ * Se la grafica non cambia, non è colpa del CSS. È colpa della CACHE o dei file DUPLICATI.
+ * 1. CANCELLA tailwind.config.js
+ * 2. CANCELLA postcss.config.js (usa solo il .mjs che ti ho dato prima)
+ * 3. CANCELLA index.html (Next.js non lo vuole!)
  */
 
 @theme {
-  --font-sans: "Inter", "Segoe UI", sans-serif;
-  --radius-xl: 1.5rem;
-  --radius-2xl: 2rem;
+  --font-sans: "Inter", "Segoe UI", system-ui, sans-serif;
+  
+  /* Colori personalizzati per i turni */
+  --color-mattino: #f59e0b;
+  --color-pomeriggio: #3b82f6;
+  --color-notte: #4338ca;
+  
+  /* Arrotondamenti estremi per look moderno */
+  --radius-turni: 1.5rem;
+  --radius-widget: 2.5rem;
 }
 
 @layer base {
@@ -18,7 +27,7 @@
     @apply bg-slate-50 text-slate-900 antialiased selection:bg-blue-100;
   }
 
-  /* Reset scrollbar per un look premium */
+  /* Reset Scrollbar - Mentore Style */
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
@@ -29,12 +38,18 @@
 }
 
 @layer utilities {
-  .glass {
-    @apply bg-white/10 backdrop-blur-xl border border-white/20 shadow-2xl;
+  /* Effetto Vetro per il widget meteo */
+  .glass-weather {
+    @apply bg-slate-900/80 backdrop-blur-2xl border border-white/10 shadow-2xl;
   }
   
-  .glass-dark {
-    @apply bg-slate-900/40 backdrop-blur-2xl border border-white/5 shadow-2xl;
+  .glass-card {
+    @apply bg-white/70 backdrop-blur-md border border-white/20 shadow-xl;
+  }
+
+  /* Animazione per i popup */
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
   }
 }
 
@@ -44,12 +59,18 @@
   border-bottom: 1px solid #f1f5f9;
 }
 
-/* Animazioni fluide */
+/* Animazione di ingresso modale */
 @keyframes modal-in {
-  from { opacity: 0; transform: scale(0.95) translateY(10px); }
+  from { opacity: 0; transform: scale(0.95) translateY(15px); }
   to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
 .animate-modal {
   animation: modal-in 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0px); }
 }
