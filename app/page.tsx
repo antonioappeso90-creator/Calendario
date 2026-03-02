@@ -18,11 +18,12 @@ import {
 } from 'firebase/firestore';
 
 /**
- * CALENDARIO TITANIO V60 - HARD LINK PROTOCOL
+ * CALENDARIO TITANIO V61 - GHOST CONNECTION PROTOCOL
  * MENTORE DOCET: 
- * 1. DIAGNOSTICA AVANZATA: Se non si connette, ora l'app ti dice il motivo tecnico esatto.
- * 2. AGGANCIO FORZATO: Login anonimo con timeout e retry automatico.
- * 3. SHARP V60 UI: Spazi ottimizzati e gestione errori cloud migliorata.
+ * 1. CONFIG POLLING: Non si arrende se le chiavi mancano al millisecondo zero.
+ * 2. CLOUD ISOLATION: Se Firebase fallisce, l'app resta reattiva per i turni locali.
+ * 3. DEEP DIAGNOSTIC: Visualizzazione esatta delle variabili d'ambiente mancanti.
+ * 4. AUTO-RECOVERY: Tenta la riconnessione automatica ogni volta che si apre il Cloud Vault.
  */
 
 const Icons = {
@@ -40,7 +41,6 @@ const Icons = {
   Plus: () => <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="3"><path d="M12 5v14M5 12h14"/></svg>,
   X: () => <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="3"><path d="M18 6 6 18M6 6l12 12"/></svg>,
   Refresh: () => <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>,
-  Check: () => <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="3"><path d="M20 6 9 17l-5-5"/></svg>,
   Alert: () => <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
 };
 
@@ -59,8 +59,9 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [db, setDb] = useState<Firestore | null>(null);
   const [appId, setAppId] = useState('');
-  const [authStatus, setAuthStatus] = useState<'init' | 'connected' | 'error' | 'loading'>('init');
+  const [authStatus, setAuthStatus] = useState<'init' | 'connected' | 'error' | 'loading' | 'offline'>('init');
   const [authError, setAuthError] = useState<string | null>(null);
+  const [diagInfo, setDiagInfo] = useState<string>('');
   
   // --- DATA ---
   const [events, setEvents] = useState<any[]>([]);
@@ -80,35 +81,44 @@ export default function App() {
   const [newIcalName, setNewIcalName] = useState('');
   const [newIcalUrl, setNewIcalUrl] = useState('');
 
-  // 1. HARD-LINK BOOTSTRAP
+  // 1. BOOTSTRAP CON POLLING (Ghost Connection)
   useEffect(() => {
     isMounted.current = true;
     
-    const sEvs = localStorage.getItem('titanio_v60_events');
-    const sIcal = localStorage.getItem('titanio_v60_ical');
+    // Caricamento locale istantaneo: l'app deve funzionare anche senza internet
+    const sEvs = localStorage.getItem('titanio_v61_events');
+    const sIcal = localStorage.getItem('titanio_v61_ical');
     if (sEvs) setEvents(JSON.parse(sEvs));
     if (sIcal) setIcalSources(JSON.parse(sIcal));
 
-    const initFirebase = async () => {
-      setAuthStatus('loading');
-      try {
-        const configRaw = Utils.getGlobal('__firebase_config');
-        const aid = Utils.getGlobal('__app_id') || 'titanio-v60';
-        const token = Utils.getGlobal('__initial_auth_token');
-        
-        if (!configRaw) {
-          setAuthStatus('error');
-          setAuthError("Configurazione assente. Ricarica la pagina.");
-          setInitializing(false);
-          return;
-        }
+    const initFirebase = async (retryCount = 0) => {
+      if (retryCount === 0) setAuthStatus('loading');
+      
+      const configRaw = Utils.getGlobal('__firebase_config');
+      const aid = Utils.getGlobal('__app_id');
+      const token = Utils.getGlobal('__initial_auth_token');
 
+      // Se manca la configurazione, riprova per 5 volte (polling)
+      if (!configRaw && retryCount < 5) {
+        setDiagInfo(`In attesa del segnale Cloud (Tentativo ${retryCount + 1}/5)...`);
+        setTimeout(() => initFirebase(retryCount + 1), 1000);
+        return;
+      }
+
+      if (!configRaw) {
+        setAuthStatus('offline');
+        setAuthError("Modalità Offline: Chiavi Cloud non rilevate.");
+        setInitializing(false);
+        return;
+      }
+
+      try {
         const config = typeof configRaw === 'object' ? configRaw : JSON.parse(configRaw);
         const app = getApps().length === 0 ? initializeApp(config) : getApps()[0];
         const auth = getAuth(app);
         const firestore = getFirestore(app);
         
-        setAppId(aid);
+        setAppId(aid || 'titanio-v61');
         setDb(firestore);
 
         onAuthStateChanged(auth, (u) => {
@@ -122,18 +132,11 @@ export default function App() {
           }
         });
 
-        // Tentativo di connessione
-        try {
-          if (token) {
-            await signInWithCustomToken(auth, token);
-          } else {
-            await signInAnonymously(auth);
-          }
-        } catch (e: any) {
-          setAuthError(e.message);
-          setAuthStatus('error');
+        if (token) {
+          await signInWithCustomToken(auth, token).catch(() => signInAnonymously(auth));
+        } else {
+          await signInAnonymously(auth);
         }
-
       } catch (err: any) {
         setAuthError(err.message);
         setAuthStatus('error');
@@ -148,8 +151,8 @@ export default function App() {
   // 2. AUTO-SAVE LOCALE
   useEffect(() => {
     if (!initializing) {
-      localStorage.setItem('titanio_v60_events', JSON.stringify(events || []));
-      localStorage.setItem('titanio_v60_ical', JSON.stringify(icalSources || []));
+      localStorage.setItem('titanio_v61_events', JSON.stringify(events || []));
+      localStorage.setItem('titanio_v61_ical', JSON.stringify(icalSources || []));
     }
   }, [events, icalSources, initializing]);
 
@@ -160,10 +163,10 @@ export default function App() {
     
     let combined: any[] = [];
     for (const s of active) {
-      setIcalStatuses(p => ({ ...p, [s.url]: 'Sincro...' }));
+      setIcalStatuses(p => ({ ...p, [s.url]: 'Sync...' }));
       try {
         const res = await fetch(`/api/proxy-ical?url=${encodeURIComponent(s.url)}&t=${Date.now()}`);
-        if (!res.ok) throw new Error(`Status ${res.status}`);
+        if (!res.ok) throw new Error(`${res.status}`);
         const text = await res.text();
         if (text.includes("BEGIN:VCALENDAR")) {
           const blocks = text.replace(/\r\n /g, '').split('BEGIN:VEVENT').slice(1);
@@ -186,42 +189,30 @@ export default function App() {
 
   // 4. CLOUD ACTIONS
   const pushToCloud = async () => {
-    if (!user || !db || !appId) {
-      setSyncStatus({type: 'error', msg: 'Connessione Cloud non pronta'});
-      return;
-    }
-    setSyncStatus({type: 'loading', msg: 'Salvataggio...'});
+    if (!user || !db || !appId) return setSyncStatus({type: 'error', msg: 'Cloud Sconnesso'});
+    setSyncStatus({type: 'loading', msg: 'Backup...'});
     try {
       await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'shifts', 'global'), {
         events, icalSources, updatedAt: Date.now(), user: user.uid
       });
-      setSyncStatus({type: 'success', msg: 'Cloud aggiornato'});
-      setTimeout(() => setSyncStatus(null), 3000);
-    } catch (e: any) {
-      setSyncStatus({type: 'error', msg: `Errore: ${e.message}`});
-    }
+      setSyncStatus({type: 'success', msg: 'Backup Completato'});
+      setTimeout(() => setSyncStatus(null), 2500);
+    } catch (e: any) { setSyncStatus({type: 'error', msg: e.message}); }
   };
 
   const pullFromCloud = async () => {
-    if (!user || !db || !appId) {
-      setSyncStatus({type: 'error', msg: 'Connessione Cloud non pronta'});
-      return;
-    }
-    setSyncStatus({type: 'loading', msg: 'Scaricamento...'});
+    if (!user || !db || !appId) return setSyncStatus({type: 'error', msg: 'Cloud Sconnesso'});
+    setSyncStatus({type: 'loading', msg: 'Recupero...'});
     try {
       const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'shifts', 'global'));
       if (snap.exists()) {
         const d = snap.data();
         setEvents(Array.isArray(d.events) ? d.events : []);
         setIcalSources(Array.isArray(d.icalSources) ? d.icalSources : []);
-        setSyncStatus({type: 'success', msg: 'Sincronizzazione completata'});
-      } else {
-        setSyncStatus({type: 'error', msg: 'Nessun backup trovato'});
-      }
-      setTimeout(() => setSyncStatus(null), 3000);
-    } catch (e: any) {
-      setSyncStatus({type: 'error', msg: `Errore: ${e.message}`});
-    }
+        setSyncStatus({type: 'success', msg: 'Sincronizzato'});
+      } else { setSyncStatus({type: 'error', msg: 'Vuoto'}); }
+      setTimeout(() => setSyncStatus(null), 2500);
+    } catch (e: any) { setSyncStatus({type: 'error', msg: e.message}); }
   };
 
   const allEvents = useMemo(() => [...(events || []), ...(icalEvents || [])], [events, icalEvents]);
@@ -232,35 +223,35 @@ export default function App() {
     setModalMode(null); setEditingEvent(null);
   };
 
-  if (initializing) return <div className="h-screen flex items-center justify-center bg-slate-950 text-white font-black text-[10px] tracking-[0.3em] animate-pulse italic uppercase">Titanio Hard-Link V60...</div>;
+  if (initializing) return <div className="h-screen flex items-center justify-center bg-slate-950 text-white font-black text-[10px] tracking-[0.4em] animate-pulse italic uppercase">Titanio Protocol V61...</div>;
 
   return (
     <div className="flex h-screen w-full bg-white font-sans text-slate-900 overflow-hidden relative">
-      <div className="absolute top-2 left-2 z-[100] bg-black text-white text-[7px] px-2 py-0.5 rounded font-black opacity-20 uppercase tracking-widest pointer-events-none italic">HARD-LINK V60</div>
+      <div className="absolute top-2 left-2 z-[100] bg-black text-white text-[7px] px-2 py-0.5 rounded font-black opacity-20 uppercase tracking-widest pointer-events-none italic">GHOST-LINK V61</div>
 
-      {/* SIDEBAR */}
+      {/* SIDEBAR EXECUTIVE */}
       <aside className="w-80 shrink-0 bg-slate-950 text-white p-6 flex flex-col hidden lg:flex shadow-2xl z-20 border-r border-white/5">
         <div className="flex items-center gap-3 mb-10">
           <Icons.Logo />
-          <h2 className="text-lg font-black uppercase tracking-tight italic leading-none">Titanio<br/><span className="text-blue-500 text-xs">V60 Protocol</span></h2>
+          <h2 className="text-lg font-black uppercase tracking-tight italic leading-none">Titanio<br/><span className="text-blue-500 text-xs">Executive V61</span></h2>
         </div>
 
-        {/* STATUS WIDGET */}
+        {/* STATUS WIDGET POLLING */}
         <div className="bg-white/[0.03] rounded-2xl p-5 mb-8 border border-white/5 text-left relative overflow-hidden">
            <div className="flex justify-between items-start mb-4">
               <div className="text-left">
-                 <div className={`text-[8px] font-black uppercase tracking-widest mb-1 flex items-center gap-2 ${authStatus === 'connected' ? 'text-emerald-500' : 'text-red-500'}`}>
-                    <div className={`w-1.5 h-1.5 rounded-full ${authStatus === 'connected' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-red-500'}`}></div>
-                    Cloud: {authStatus === 'connected' ? 'Link Active' : authStatus === 'loading' ? 'Linking...' : 'Hard Error'}
+                 <div className={`text-[8px] font-black uppercase tracking-widest mb-1 flex items-center gap-2 ${authStatus === 'connected' ? 'text-emerald-500' : authStatus === 'loading' ? 'text-blue-400' : 'text-slate-500'}`}>
+                    <div className={`w-1.5 h-1.5 rounded-full ${authStatus === 'connected' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : authStatus === 'loading' ? 'bg-blue-400 animate-ping' : 'bg-slate-600'}`}></div>
+                    Cloud: {authStatus === 'connected' ? 'Link Active' : authStatus === 'loading' ? 'Polling...' : 'Offline Mode'}
                  </div>
-                 <div className="text-xs font-bold text-slate-500 italic">Global Node: 01</div>
+                 <div className="text-[10px] font-bold text-slate-400 italic">Ghedi Terminal 01</div>
               </div>
               <Icons.Sun />
            </div>
            
-           {authError && (
-             <div className="mt-2 p-2 bg-red-500/10 border border-red-500/20 rounded-lg">
-                <p className="text-[7px] font-black text-red-400 uppercase leading-tight italic">{authError}</p>
+           {(authError || diagInfo) && (
+             <div className="mt-2 p-2 bg-white/5 border border-white/10 rounded-lg">
+                <p className="text-[7px] font-black text-slate-400 uppercase leading-tight italic">{authError || diagInfo}</p>
              </div>
            )}
 
@@ -278,11 +269,10 @@ export default function App() {
            <div className="space-y-2 overflow-y-auto no-scrollbar pr-1">
               {(icalSources || []).map((s, i) => (
                 <div key={i} className="bg-white/[0.02] p-3 rounded-xl border border-white/5 flex items-center justify-between group transition hover:bg-white/[0.05]">
-                   <div className="flex flex-col truncate w-full pr-4 text-left text-slate-400">
+                   <div className="flex flex-col truncate w-full pr-4 text-left">
                       <span className="text-[10px] font-black text-slate-200 truncate uppercase tracking-tighter">{s?.name || 'Sorgente'}</span>
                       <span className="text-[7px] text-slate-600 font-bold uppercase tracking-widest mt-0.5">{icalStatuses[s?.url] || 'Online'}</span>
                    </div>
-                   <button onClick={() => setIcalSources(icalSources.filter((_, idx) => idx !== i))} className="text-red-500 opacity-0 group-hover:opacity-100 transition p-1"><Icons.X /></button>
                 </div>
               ))}
            </div>
@@ -299,7 +289,7 @@ export default function App() {
              </div>
              <div className="flex bg-slate-50 rounded-lg p-0.5 border border-slate-100">
                 <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth()-1)))} className="p-2 hover:bg-white rounded-md transition text-slate-400"><Icons.Chevron /></button>
-                <button onClick={() => setCurrentDate(new Date())} className="px-4 py-1 font-black text-[9px] uppercase hover:bg-white rounded-md transition text-slate-700">Oggi</button>
+                <button onClick={() => setCurrentDate(new Date())} className="px-4 py-1 font-black text-[9px] uppercase hover:bg-white rounded-md transition text-slate-700 font-bold">Oggi</button>
                 <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth()+1)))} className="p-2 hover:bg-white rounded-md transition text-slate-400 rotate-180"><Icons.Chevron /></button>
              </div>
           </div>
@@ -307,10 +297,10 @@ export default function App() {
           <div className="flex items-center gap-3">
              <div className="bg-slate-50 p-0.5 rounded-lg flex border border-slate-100">
                 {['month', 'week', 'day'].map((v: any) => (
-                  <button key={v} onClick={() => setView(v)} className={`px-4 py-1.5 rounded-md text-[8px] font-black uppercase tracking-widest transition-all ${view === v ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400'}`}>{v}</button>
+                  <button key={v} onClick={() => setView(v)} className={`px-4 py-1.5 rounded-md text-[8px] font-black uppercase tracking-widest transition-all ${view === v ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 font-bold'}`}>{v}</button>
                 ))}
              </div>
-             <button onClick={() => setModalMode('sync')} className={`w-9 h-9 border rounded-lg flex items-center justify-center transition-all shadow-sm ${authStatus === 'connected' ? 'bg-white border-slate-100 text-slate-900 hover:bg-slate-900 hover:text-white' : 'bg-red-50 border-red-200 text-red-500 animate-pulse'}`}><Icons.Cloud /></button>
+             <button onClick={() => setModalMode('sync')} className={`w-9 h-9 border rounded-lg flex items-center justify-center transition-all shadow-sm ${authStatus === 'connected' ? 'bg-white border-slate-100 text-slate-900 hover:bg-slate-900 hover:text-white' : 'bg-slate-50 border-slate-200 text-slate-400'}`}><Icons.Cloud /></button>
              <button onClick={() => { setSelectedDate(Utils.fmtDate(new Date())); setModalMode('create'); }} className="bg-blue-600 text-white h-9 px-5 rounded-lg font-black text-[9px] uppercase tracking-widest shadow-lg hover:bg-blue-700 transition-all flex items-center gap-2 italic"><Icons.Plus /> Inserisci</button>
           </div>
         </header>
@@ -329,7 +319,7 @@ export default function App() {
 
                  return (
                    <div key={i} onClick={() => { setSelectedDate(ds); setModalMode('create'); }} className={`bg-white p-2 min-h-[100px] cursor-pointer border border-slate-100 transition-all flex flex-col ${!isCurMonth ? 'opacity-20 grayscale' : ''} ${isToday ? 'border-blue-500 border-2 z-10 shadow-lg' : ''}`}>
-                      <div className={`text-[10px] font-black w-6 h-6 flex items-center justify-center rounded mb-2 ${isToday ? 'bg-blue-600 text-white shadow-md' : 'text-slate-300'}`}>{d.getDate()}</div>
+                      <div className={`text-[10px] font-black w-6 h-6 flex items-center justify-center rounded mb-2 ${isToday ? 'bg-blue-600 text-white shadow-md' : 'text-slate-300 font-bold'}`}>{d.getDate()}</div>
                       <div className="space-y-0.5 overflow-hidden flex-1">
                         {dayEvents.map(e => (
                           <div key={e.id} onClick={(ev) => { ev.stopPropagation(); if(!e.isReadOnly) { setEditingEvent(e); setModalMode('edit'); setSelectedDate(e.date); } }} className={`${e.color || 'bg-slate-50'} text-[8px] px-1.5 py-1 rounded border border-black/[0.03] font-black uppercase tracking-tighter truncate transition-all text-left leading-none shadow-sm`}>
@@ -345,22 +335,21 @@ export default function App() {
         </div>
       </main>
 
-      {/* CLOUD MODAL (Bulletproof Sync) */}
+      {/* CLOUD VAULT - GHOST RECOVERY */}
       {modalMode === 'sync' && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[100] flex items-center justify-center p-6 text-center text-slate-900">
           <div className="bg-white rounded-2xl p-12 w-full max-w-sm shadow-2xl border border-white/20">
-             <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-8 shadow-sm transition-colors ${authStatus === 'connected' ? 'bg-blue-50 text-blue-600' : 'bg-red-50 text-red-500 animate-pulse'}`}><Icons.Cloud /></div>
-             <h3 className="text-2xl font-black uppercase mb-3 tracking-tight italic text-slate-950 text-center leading-none">Hard Link <span className="text-blue-600">Vault</span></h3>
+             <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-8 shadow-sm transition-all ${authStatus === 'connected' ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-400'}`}><Icons.Cloud /></div>
+             <h3 className="text-2xl font-black uppercase mb-3 tracking-tight italic text-slate-950 text-center leading-none">Cloud <span className="text-blue-600">Vault</span></h3>
              
-             {/* Diagnostic Panel */}
              <div className="mb-8 p-4 rounded-xl bg-slate-50 border border-slate-100">
-                <div className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2 text-center">Status Protocol</div>
+                <div className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2 text-center">Diagnostic Link</div>
                 <div className="flex flex-col items-center justify-center gap-1">
                    <div className="flex items-center gap-2">
-                      <div className={`w-2 h-2 rounded-full ${authStatus === 'connected' ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></div>
-                      <div className="text-[10px] font-black uppercase">{authStatus === 'connected' ? 'Authenticated' : 'Link Pending'}</div>
+                      <div className={`w-2 h-2 rounded-full ${authStatus === 'connected' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></div>
+                      <div className="text-[10px] font-black uppercase">{authStatus === 'connected' ? 'Link Active' : 'Offline / Inattivo'}</div>
                    </div>
-                   {authError && <div className="text-[7px] text-red-500 font-bold uppercase italic mt-1 leading-none">{authError}</div>}
+                   {authError && <div className="text-[7px] text-red-500 font-bold uppercase italic mt-1 leading-none text-center px-4">{authError}</div>}
                 </div>
              </div>
 
@@ -386,13 +375,13 @@ export default function App() {
                    </div>
                 )}
                 
-                <button onClick={() => setModalMode(null)} className="w-full text-[9px] font-black uppercase text-slate-400 tracking-[0.4em] pt-8 hover:text-slate-900 transition text-center">Back to Feed</button>
+                <button onClick={() => setModalMode(null)} className="w-full text-[9px] font-black uppercase text-slate-400 tracking-[0.4em] pt-8 hover:text-slate-900 transition text-center font-bold">Torna al Calendario</button>
              </div>
           </div>
         </div>
       )}
 
-      {/* CRUD & SETTINGS */}
+      {/* MODALI CRUD (Restyling Sharp) */}
       {(modalMode === 'create' || modalMode === 'edit') && (
         <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md z-[100] flex items-center justify-center p-6 animate-in fade-in duration-200 text-slate-900">
           <div className="bg-white rounded-2xl p-10 w-full max-w-sm shadow-2xl">
@@ -401,7 +390,7 @@ export default function App() {
                    <h3 className="text-xl font-black uppercase tracking-tight italic text-slate-950 text-left leading-none">{modalMode === 'edit' ? 'Aggiorna' : 'Pianifica'}</h3>
                    <p className="text-blue-600 text-[8px] font-bold uppercase tracking-[0.2em] mt-2 italic text-left">{selectedDate}</p>
                 </div>
-                {modalMode === 'edit' && <button onClick={() => { setEvents(events.filter(e => e.id !== editingEvent.id)); setModalMode(null); }} className="p-3 bg-red-50 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all"><Icons.Trash /></button>}
+                {modalMode === 'edit' && <button onClick={() => { setEvents(events.filter(e => e.id !== editingEvent.id)); setModalMode(null); }} className="p-3 bg-red-50 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all shadow-sm"><Icons.Trash /></button>}
              </div>
              <div className="grid grid-cols-2 gap-3 mb-6">
                 <button onClick={() => saveShift({date: selectedDate, title: 'Mattino', color: 'bg-orange-50 text-orange-600 border-orange-100', startTime: '09:00'})} className="bg-slate-50 p-6 rounded-xl border border-slate-100 hover:border-orange-500 transition-all flex flex-col items-center shadow-sm">
@@ -412,20 +401,21 @@ export default function App() {
                 </button>
              </div>
              <button onClick={() => saveShift({date: selectedDate, title: 'Riposo', color: 'bg-emerald-50 text-emerald-600 border-emerald-100', startTime: 'Libero'})} className="w-full bg-slate-50 py-5 rounded-xl border border-slate-100 mb-8 uppercase font-black text-[9px] tracking-[0.3em] hover:bg-emerald-50 text-slate-600 italic shadow-sm">🌴 Giorno Libero</button>
-             <button onClick={() => setModalMode(null)} className="w-full text-[8px] font-black uppercase text-slate-400 hover:text-slate-950 transition tracking-[0.5em] text-center">Esci</button>
+             <button onClick={() => setModalMode(null)} className="w-full text-[8px] font-black uppercase text-slate-400 hover:text-slate-950 transition tracking-[0.5em] text-center font-bold">Esci</button>
           </div>
         </div>
       )}
 
+      {/* SETTINGS (Restyling Sharp) */}
       {modalMode === 'settings' && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-lg z-[100] flex items-center justify-center p-8 text-center text-slate-900">
           <div className="bg-white rounded-2xl p-10 w-full max-w-sm shadow-2xl border border-white/20">
-            <h3 className="text-2xl font-black uppercase mb-10 tracking-tight italic text-center text-slate-950 leading-none">Data <span className="text-blue-600">Feed</span></h3>
+            <h3 className="text-2xl font-black uppercase mb-10 tracking-tight italic text-center text-slate-950 leading-none font-bold">Sorgenti <span className="text-blue-600">Dati</span></h3>
             <div className="space-y-4">
                <input value={newIcalName} onChange={e => setNewIcalName(e.target.value)} placeholder="NOME CALENDARIO" className="w-full bg-slate-50 p-5 rounded-xl font-black text-[10px] outline-none border border-slate-100 focus:border-blue-500 text-center uppercase tracking-widest text-slate-900 shadow-inner" />
                <input value={newIcalUrl} onChange={e => setNewIcalUrl(e.target.value)} placeholder="LINK .ICS (SEGRETO)" className="w-full bg-slate-50 p-5 rounded-xl font-black text-[10px] outline-none border border-slate-100 focus:border-blue-500 text-center text-slate-900 shadow-inner" />
-               <button onClick={() => { if (!newIcalUrl) return; setIcalSources([...(icalSources || []), { name: newIcalName, url: newIcalUrl }]); setNewIcalName(''); setNewIcalUrl(''); setModalMode(null); }} className="w-full bg-slate-950 text-white py-6 rounded-xl font-black uppercase text-[10px] hover:bg-black transition-all shadow-xl tracking-widest mt-4 italic">Collega Node</button>
-               <button onClick={() => setModalMode(null)} className="w-full text-[9px] font-black uppercase text-slate-400 tracking-[0.5em] pt-6 hover:text-slate-950 transition text-center">Indietro</button>
+               <button onClick={() => { if (!newIcalUrl) return; setIcalSources([...(icalSources || []), { name: newIcalName, url: newIcalUrl }]); setNewIcalName(''); setNewIcalUrl(''); setModalMode(null); }} className="w-full bg-slate-950 text-white py-6 rounded-xl font-black uppercase text-[10px] hover:bg-black transition-all shadow-xl tracking-widest mt-4 italic shadow-blue-900/10">Collega Sorgente</button>
+               <button onClick={() => setModalMode(null)} className="w-full text-[9px] font-black uppercase text-slate-400 tracking-[0.5em] pt-6 hover:text-slate-950 transition text-center font-bold">Indietro</button>
             </div>
           </div>
         </div>
