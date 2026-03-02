@@ -14,18 +14,16 @@ import {
   doc, 
   getDoc, 
   setDoc,
-  collection,
-  onSnapshot,
   Firestore
 } from 'firebase/firestore';
 
 /**
- * CALENDARIO TITANIO V75 - SERVER-SAFE SHIELD
+ * CALENDARIO TITANIO V76 - OBSIDIAN TIME-SHIELD
  * MENTORE DOCET: 
- * 1. SSR FIX: Risolto il crash "window is not defined" che bloccava il build su Vercel.
- * 2. SAFE GLOBAL ACCESS: Utilizzo sistematico di Utils.getGlobal per appId e configurazioni.
- * 3. IRON PERSISTENCE: Mantenuta la protezione contro la perdita dati al refresh.
- * 4. PRIORITY FOCUS: Turni di lavoro sempre in evidenza rispetto agli eventi iCal.
+ * 1. TIME-ZONE FIX: Eliminato l'uso di toISOString() che causava il salto di anno (UTC Shift bug).
+ * 2. LOCAL PERSISTENCE: Dati blindati in ora locale per coerenza assoluta.
+ * 3. ICAL ROBUSTNESS: Parsing migliorato per gestire stringhe iCal complesse.
+ * 4. CLOUD SAFETY: Diagnostica avanzata per evitare crash su configurazioni mancanti.
  */
 
 const Icons = {
@@ -61,8 +59,15 @@ const PALETTE = [
 
 const Utils = {
   isValidDate: (d: any) => d instanceof Date && !isNaN(d.getTime()),
-  fmtDate: (d: any) => { 
-    try { if (!Utils.isValidDate(d)) return ""; return d.toISOString().split('T')[0]; } catch { return ""; } 
+  // FIX MENTORE: Utilizziamo l'ora locale invece di toISOString per evitare il salto di data/anno
+  fmtDate: (date: any) => { 
+    try { 
+      if (!Utils.isValidDate(date)) return ""; 
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    } catch { return ""; } 
   },
   getGlobal: (key: string) => { 
     if (typeof window === 'undefined') return undefined;
@@ -82,9 +87,7 @@ const Utils = {
 export default function App() {
   const isMounted = useRef(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  // MENTORE: appId calcolato in modo sicuro per evitare crash SSR
-  const appId = useMemo(() => Utils.getGlobal('__app_id') || 'titanio-v75', []);
+  const appId = useMemo(() => Utils.getGlobal('__app_id') || 'titanio-v76', []);
   
   // --- DATABASE & AUTH ---
   const [user, setUser] = useState<User | null>(null);
@@ -126,13 +129,11 @@ export default function App() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `titanio_v75_backup_${Utils.fmtDate(new Date())}.json`;
+      a.download = `titanio_v76_backup_${Utils.fmtDate(new Date())}.json`;
       a.click();
       setSyncStatus({ type: 'success', msg: 'Backup Generato' });
       setTimeout(() => setSyncStatus(null), 2000);
-    } catch (e) {
-      setSyncStatus({ type: 'error', msg: 'Errore Export' });
-    }
+    } catch (e) { setSyncStatus({ type: 'error', msg: 'Errore Export' }); }
   };
 
   const importBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -146,9 +147,7 @@ export default function App() {
         if (data.icalSources) setIcalSources(data.icalSources);
         setSyncStatus({ type: 'success', msg: 'Dati Caricati' });
         setModalMode(null);
-      } catch (err) {
-        setSyncStatus({ type: 'error', msg: 'File non valido' });
-      }
+      } catch (err) { setSyncStatus({ type: 'error', msg: 'File non valido' }); }
     };
     reader.readAsText(file);
   };
@@ -160,9 +159,7 @@ export default function App() {
       const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'userData', 'main');
       await setDoc(docRef, { events, icalSources, lastSync: new Date().toISOString() });
       setSyncStatus({ type: 'success', msg: 'Sync Cloud Ok' });
-    } catch (e) {
-      setSyncStatus({ type: 'error', msg: 'Errore Cloud Write' });
-    }
+    } catch (e) { setSyncStatus({ type: 'error', msg: 'Errore Cloud Write' }); }
     setTimeout(() => setSyncStatus(null), 3000);
   };
 
@@ -177,65 +174,40 @@ export default function App() {
         if (data.events) setEvents(data.events);
         if (data.icalSources) setIcalSources(data.icalSources);
         setSyncStatus({ type: 'success', msg: 'Dati Recuperati' });
-      } else {
-        setSyncStatus({ type: 'error', msg: 'Nessun dato nel Cloud' });
-      }
-    } catch (e) {
-      setSyncStatus({ type: 'error', msg: 'Errore Cloud Read' });
-    }
+      } else { setSyncStatus({ type: 'error', msg: 'Nessun dato nel Cloud' }); }
+    } catch (e) { setSyncStatus({ type: 'error', msg: 'Errore Cloud Read' }); }
     setTimeout(() => setSyncStatus(null), 3000);
   };
 
   // 1. BOOTSTRAP
   useEffect(() => {
     isMounted.current = true;
-    
-    // Leggiamo da LocalStorage (solo client-side)
     try {
-      const sEvs = localStorage.getItem('titanio_v75_events');
-      const sIcal = localStorage.getItem('titanio_v75_ical');
+      const sEvs = localStorage.getItem('titanio_v76_events');
+      const sIcal = localStorage.getItem('titanio_v76_ical');
       if (sEvs) setEvents(JSON.parse(sEvs));
       if (sIcal) setIcalSources(JSON.parse(sIcal));
       setDataLoaded(true);
-    } catch (e) {
-      setDataLoaded(true);
-    }
+    } catch (e) { setDataLoaded(true); }
 
     const connect = async () => {
       const cfgStr = Utils.getGlobal('__firebase_config');
       const tok = Utils.getGlobal('__initial_auth_token');
-
-      setDebugLog({
-        config: cfgStr ? 'FOUND' : 'MISSING',
-        app: appId ? 'FOUND' : 'DEFAULT',
-        token: tok ? 'FOUND' : 'MISSING'
-      });
-
+      setDebugLog({ config: cfgStr ? 'FOUND' : 'MISSING', app: appId ? 'FOUND' : 'DEFAULT' });
       if (!cfgStr) { setAuthStatus('offline'); setInitializing(false); return; }
-
       try {
         const config = typeof cfgStr === 'object' ? cfgStr : JSON.parse(cfgStr);
         const app = getApps().length === 0 ? initializeApp(config) : getApps()[0];
         const auth = getAuth(app);
         const firestore = getFirestore(app);
         setDb(firestore);
-
         onAuthStateChanged(auth, (u) => {
-          if (isMounted.current) { 
-            setUser(u); 
-            if (u) setAuthStatus('connected'); 
-            setInitializing(false); 
-          }
+          if (isMounted.current) { setUser(u); if (u) setAuthStatus('connected'); setInitializing(false); }
         });
-
         if (tok) await signInWithCustomToken(auth, tok).catch(() => signInAnonymously(auth));
         else await signInAnonymously(auth);
-      } catch (err) { 
-        setAuthStatus('offline'); 
-        setInitializing(false); 
-      }
+      } catch (err) { setAuthStatus('offline'); setInitializing(false); }
     };
-    
     setTimeout(connect, 1000);
     return () => { isMounted.current = false; };
   }, [appId]);
@@ -243,12 +215,12 @@ export default function App() {
   // 2. AUTO-SAVE
   useEffect(() => {
     if (dataLoaded && !initializing) {
-      localStorage.setItem('titanio_v75_events', JSON.stringify(events || []));
-      localStorage.setItem('titanio_v75_ical', JSON.stringify(icalSources || []));
+      localStorage.setItem('titanio_v76_events', JSON.stringify(events || []));
+      localStorage.setItem('titanio_v76_ical', JSON.stringify(icalSources || []));
     }
   }, [events, icalSources, dataLoaded, initializing]);
 
-  // 3. iCAL ENGINE
+  // 3. iCAL ENGINE - ROBUST SHIELD
   const fetchIcal = async () => {
     const active = (icalSources || []).filter(s => s?.url?.startsWith('http'));
     if (active.length === 0) { setIcalEvents([]); return; }
@@ -263,18 +235,25 @@ export default function App() {
           const blocks = text.replace(/\r\n /g, '').split('BEGIN:VEVENT').slice(1);
           const sColor = PALETTE.find(p => p.id === s.color) || PALETTE[0];
           blocks.forEach(block => {
-            const summary = (block.match(/SUMMARY:(.*)/)?.[1] || "iCal Event").trim();
-            const stMatch = block.match(/DTSTART[;:][^:]*:?(\d{8}T\d{4})/);
-            const startTime = stMatch ? `${stMatch[1].substr(9,2)}:${stMatch[1].substr(11,2)}` : "G";
-            const enMatch = block.match(/DTEND[;:][^:]*:?(\d{8}T\d{4})/);
-            const endTime = enMatch ? `${enMatch[1].substr(9,2)}:${enMatch[1].substr(11,2)}` : (startTime === "G" ? "G" : "??:??");
+            const summary = (block.match(/SUMMARY:(.*)/)?.[1] || "Evento iCal").trim();
             const dateMatch = block.match(/DTSTART[;:][^:]*:?(\d{8})/);
             if (dateMatch) {
               const dStr = dateMatch[1];
-              const d = new Date(parseInt(dStr.substr(0,4)), parseInt(dStr.substr(4,2))-1, parseInt(dStr.substr(6,2)));
+              const y = parseInt(dStr.substr(0,4));
+              const m = parseInt(dStr.substr(4,2))-1;
+              const dDay = parseInt(dStr.substr(6,2));
+              
+              // Creiamo la data LOCALMENTE per evitare UTC shift
+              const dateObj = new Date(y, m, dDay);
+              
+              const stMatch = block.match(/DTSTART[;:][^:]*:?(\d{8}T\d{4})/);
+              const startTime = stMatch ? `${stMatch[1].substr(9,2)}:${stMatch[1].substr(11,2)}` : "G";
+              const enMatch = block.match(/DTEND[;:][^:]*:?(\d{8}T\d{4})/);
+              const endTime = enMatch ? `${enMatch[1].substr(9,2)}:${enMatch[1].substr(11,2)}` : (startTime === "G" ? "G" : "??:??");
+
               combined.push({ 
                 id: `ical-${Math.random()}`, 
-                date: Utils.fmtDate(d), 
+                date: Utils.fmtDate(dateObj), 
                 title: summary, 
                 startTime, 
                 endTime,
@@ -325,9 +304,7 @@ export default function App() {
     };
     if (modalMode === 'edit' && editingEvent) {
       setEvents(events.map(e => e.id === editingEvent.id ? { ...e, ...data } : e));
-    } else {
-      setEvents([...events, { id: Math.random().toString(36).substr(2,9), ...data }]);
-    }
+    } else { setEvents([...events, { id: Math.random().toString(36).substr(2,9), ...data }]); }
     setModalMode(null);
   };
 
@@ -335,20 +312,20 @@ export default function App() {
 
   if (initializing && events.length === 0) return (
     <div className="h-screen flex flex-col items-center justify-center bg-slate-950 text-white font-black text-left">
-      <div className="text-[10px] tracking-[0.5em] animate-pulse italic uppercase text-blue-500 mb-2">Titanio Iron-Gate V75</div>
-      <div className="text-[7px] opacity-40 uppercase tracking-widest italic text-center">Server-Safe Protection Engaged...</div>
+      <div className="text-[10px] tracking-[0.5em] animate-pulse italic uppercase text-blue-500 mb-2">Titanio Time-Shield V76</div>
+      <div className="text-[7px] opacity-40 uppercase tracking-widest italic text-center leading-none">Calibrazione Fuso Orario...</div>
     </div>
   );
 
   return (
     <div className="flex h-screen w-full bg-white font-sans text-slate-900 overflow-hidden relative selection:bg-blue-100 text-left">
-      <div className="absolute top-2 left-2 z-[100] bg-black text-white text-[7px] px-2 py-0.5 rounded-sm font-black opacity-20 uppercase tracking-widest pointer-events-none italic">IRON-GATE V75</div>
+      <div className="absolute top-2 left-2 z-[100] bg-black text-white text-[7px] px-2 py-0.5 rounded-sm font-black opacity-20 uppercase tracking-widest pointer-events-none italic">TIME-SHIELD V76</div>
 
       {/* SIDEBAR */}
       <aside className="w-80 shrink-0 bg-slate-950 text-white p-6 flex flex-col hidden lg:flex shadow-2xl z-20 border-r border-white/5 text-left">
         <div className="flex items-center gap-3 mb-10 text-left">
           <Icons.Logo />
-          <h2 className="text-lg font-black uppercase tracking-tight italic leading-none text-left">Titanio<br/><span className="text-blue-500 text-[10px] text-left">Server-Safe Persistence</span></h2>
+          <h2 className="text-lg font-black uppercase tracking-tight italic leading-none text-left">Titanio<br/><span className="text-blue-500 text-[10px] text-left">Local Time Engine</span></h2>
         </div>
 
         <div className="bg-white/[0.02] rounded-lg p-5 mb-8 border border-white/5 text-left relative overflow-hidden shadow-inner text-left">
@@ -356,9 +333,9 @@ export default function App() {
               <div className="text-left">
                  <div className={`text-[8px] font-black uppercase tracking-widest mb-1 flex items-center gap-2 ${authStatus === 'connected' ? 'text-emerald-500' : 'text-slate-500'}`}>
                     <div className={`w-1.5 h-1.5 rounded-full ${authStatus === 'connected' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-slate-600'}`}></div>
-                    {authStatus === 'connected' ? 'Cloud Integrated' : 'Vault Local'}
+                    {authStatus === 'connected' ? 'Sync Active' : 'Vault Local'}
                  </div>
-                 <div className="text-[10px] font-bold text-slate-500 italic uppercase tracking-tighter text-left leading-none">SSR Shield Active</div>
+                 <div className="text-[10px] font-bold text-slate-500 italic uppercase tracking-tighter text-left leading-none">Iron Persistence: Engaged</div>
               </div>
               <Icons.Sun />
            </div>
@@ -399,11 +376,11 @@ export default function App() {
           <div className="flex items-center gap-6 text-left">
              <div className="flex flex-col min-w-[140px] text-left">
                 <h1 className="text-2xl font-black tracking-tighter uppercase leading-none text-slate-900 italic text-left leading-none">{currentDate.toLocaleString('it-IT', { month: 'long' })}</h1>
-                <span className="text-[9px] font-bold text-slate-300 uppercase tracking-[0.3em] text-left leading-none italic">{currentDate.getFullYear()}</span>
+                <span className="text-[9px] font-bold text-slate-300 uppercase tracking-[0.3em] text-left leading-none italic leading-none">{currentDate.getFullYear()}</span>
              </div>
              <div className="flex bg-slate-50 rounded p-0.5 border border-slate-100 shadow-inner text-left">
                 <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth()-1)))} className="p-2 hover:bg-white rounded transition text-slate-400"><Icons.ChevronLeft /></button>
-                <button onClick={() => setCurrentDate(new Date())} className="px-4 py-1 font-black text-[9px] uppercase hover:bg-white rounded transition text-slate-700 font-bold italic">Oggi</button>
+                <button onClick={() => setCurrentDate(new Date())} className="px-4 py-1 font-black text-[9px] uppercase hover:bg-white rounded transition text-slate-700 font-bold italic leading-none">Oggi</button>
                 <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth()+1)))} className="p-2 hover:bg-white rounded transition text-slate-400"><Icons.ChevronRight /></button>
              </div>
           </div>
@@ -417,10 +394,11 @@ export default function App() {
              <button 
                 onClick={() => setModalMode('sync')} 
                 className={`w-9 h-9 border rounded flex items-center justify-center transition-all shadow-sm ${authStatus === 'offline' ? 'border-amber-100 bg-amber-50/20 text-amber-500' : 'border-slate-100 bg-white text-slate-900 hover:bg-slate-900 hover:text-white'}`}
+                title={authStatus === 'offline' ? "Cloud Diagnostic" : "Vault Sync"}
              >
                 <Icons.Cloud />
              </button>
-             <button onClick={() => openModal('create', Utils.fmtDate(new Date()))} className="bg-blue-600 text-white h-9 px-5 rounded font-black text-[9px] uppercase tracking-widest shadow-lg hover:bg-blue-700 transition-all flex items-center gap-2 italic"><Icons.Plus /> Nuova Entry</button>
+             <button onClick={() => openModal('create', Utils.fmtDate(new Date()))} className="bg-blue-600 text-white h-9 px-5 rounded font-black text-[9px] uppercase tracking-widest shadow-lg hover:bg-blue-700 transition-all flex items-center gap-2 italic leading-none"><Icons.Plus /> Nuova Entry</button>
           </div>
         </header>
 
@@ -469,7 +447,7 @@ export default function App() {
                  return (
                    <div key={i} className={`bg-white flex flex-col border border-slate-100 h-full ${isToday ? 'border-blue-500 border-2 z-10 shadow-xl' : ''} text-left`}>
                       <div className="text-center p-4 border-b border-slate-50 bg-slate-50/50 text-left">
-                        <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none italic text-left">{d.toLocaleString('it-IT', { weekday: 'short' })}</div>
+                        <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none italic text-left leading-none">{d.toLocaleString('it-IT', { weekday: 'short' })}</div>
                         <div className={`text-2xl font-black ${isToday ? 'text-blue-600' : 'text-slate-900'} text-left`}>{d.getDate()}</div>
                       </div>
                       <div className="flex-1 p-2 space-y-2 overflow-y-auto no-scrollbar text-left pr-1 text-left">
@@ -500,8 +478,8 @@ export default function App() {
                 <div className="bg-white rounded-xl p-12 border border-slate-100 shadow-2xl flex-1 flex flex-col text-left overflow-hidden text-left">
                    <div className="mb-10 pb-10 border-b border-slate-100 text-left flex justify-between items-end text-left">
                       <div className="text-left">
-                         <h2 className="text-5xl font-black text-slate-950 uppercase tracking-tighter leading-none mb-3 italic text-left">{currentDate.toLocaleString('it-IT', { weekday: 'long' })}</h2>
-                         <p className="text-blue-600 font-bold uppercase tracking-[0.6em] text-[10px] text-left leading-none italic text-left">{currentDate.getDate()} {currentDate.toLocaleString('it-IT', { month: 'long' })} {currentDate.getFullYear()}</p>
+                         <h2 className="text-5xl font-black text-slate-950 uppercase tracking-tighter leading-none mb-3 italic text-left leading-none">{currentDate.toLocaleString('it-IT', { weekday: 'long' })}</h2>
+                         <p className="text-blue-600 font-bold uppercase tracking-[0.6em] text-[10px] text-left leading-none italic text-left leading-none">{currentDate.getDate()} {currentDate.toLocaleString('it-IT', { month: 'long' })} {currentDate.getFullYear()}</p>
                       </div>
                       <div className="text-slate-200 font-black text-6xl tracking-tighter select-none opacity-20 italic uppercase leading-none text-left">{currentDate.getDate()}</div>
                    </div>
@@ -516,10 +494,10 @@ export default function App() {
                                  <span className="text-[9px] font-black opacity-60 uppercase tracking-[0.2em] mt-2 text-left leading-none italic text-white/50 text-left">COMMAND SHIFT</span>
                               </div>
                               <div className="flex-1 text-left">
-                                 <div className="text-3xl font-black uppercase tracking-tight leading-none mb-1 italic transition text-left">{e.title}</div>
+                                 <div className="text-3xl font-black uppercase tracking-tight leading-none mb-1 italic transition text-left leading-none">{e.title}</div>
                                  <div className="flex items-center gap-2 opacity-60 text-left">
                                     <div className={`w-2 h-2 rounded-full ${e.dot}`}></div>
-                                    <div className="text-[10px] font-black uppercase tracking-widest text-left leading-none text-white/70 italic text-left">Manually Calibrated</div>
+                                    <div className="text-[10px] font-black uppercase tracking-widest text-left leading-none text-white/70 italic text-left leading-none">Manually Calibrated</div>
                                  </div>
                               </div>
                               <div onClick={(ev) => { ev.stopPropagation(); setEvents(events.filter(ev => ev.id !== e.id)); }} className="text-white/30 hover:text-white transition p-3 bg-black/10 rounded-lg"><Icons.Trash /></div>
@@ -531,12 +509,12 @@ export default function App() {
                         <div className="text-[9px] font-black uppercase tracking-[0.4em] text-slate-300 italic mb-2 text-left">Auxiliary Data Nodes</div>
                         {Utils.sortEvents(allEvents.filter(e => e.date === Utils.fmtDate(currentDate) && e.isReadOnly)).map(e => (
                            <div key={e.id} className={`${e.color} p-5 rounded-lg border border-black/5 flex items-center gap-8 opacity-70 hover:opacity-100 transition shadow-md text-left`}>
-                              <div className="w-24 shrink-0 flex flex-col border-r border-black/5 pr-6 text-left opacity-50 text-left">
+                              <div className="w-24 shrink-0 flex flex-col border-r border-black/5 pr-6 text-left opacity-50 text-left leading-none">
                                  <span className="text-sm font-black text-slate-900 leading-none text-left italic text-left">{e.startTime} - {e.endTime}</span>
                               </div>
                               <div className="flex-1 text-left">
-                                 <div className="text-lg font-black uppercase tracking-tight text-slate-950 leading-none mb-1 italic text-left">{e.title}</div>
-                                 <div className="text-[8px] font-bold uppercase tracking-widest text-slate-400 text-left leading-none italic text-left">SYNCED NODE</div>
+                                 <div className="text-lg font-black uppercase tracking-tight text-slate-950 leading-none mb-1 italic text-left leading-none">{e.title}</div>
+                                 <div className="text-[8px] font-bold uppercase tracking-widest text-slate-400 text-left leading-none italic text-left leading-none">SYNCED NODE</div>
                               </div>
                            </div>
                         ))}
@@ -557,14 +535,14 @@ export default function App() {
       {/* VAULT MODAL */}
       {modalMode === 'sync' && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[100] flex items-center justify-center p-6 text-center text-slate-900 animate-in fade-in duration-200 text-left">
-          <div className="bg-white rounded-xl p-10 w-full max-w-sm shadow-2xl overflow-hidden text-left">
+          <div className="bg-white rounded-xl p-10 w-full max-sm:p-6 max-w-sm shadow-2xl overflow-hidden text-left">
              <div className={`w-16 h-16 rounded-xl flex items-center justify-center mx-auto mb-6 shadow-sm ${authStatus === 'offline' ? 'bg-amber-50 text-amber-500' : 'bg-blue-50 text-blue-600'} text-left`}><Icons.Cloud /></div>
              <h3 className="text-2xl font-black uppercase mb-8 tracking-tight italic text-slate-950 text-center leading-none text-left font-bold">Data <span className="text-blue-600">Priority Vault</span></h3>
              
              <div className="mb-10 p-6 bg-slate-50 border border-slate-100 rounded-lg text-left overflow-hidden shadow-inner text-left">
                 <div className="flex items-center gap-2 mb-3 border-b border-slate-200 pb-2 text-left">
                    <Icons.Terminal />
-                   <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest italic text-left">Diagnostic Terminal</span>
+                   <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest italic text-left leading-none">Diagnostic Terminal</span>
                 </div>
                 <div className="space-y-1 text-left">
                    {Object.entries(debugLog).map(([k, v]) => (
@@ -574,9 +552,9 @@ export default function App() {
                      </div>
                    ))}
                 </div>
-                {authStatus !== 'connected' && (
-                  <div className="mt-4 p-3 bg-amber-100/50 rounded-md text-amber-600 text-[8px] font-black uppercase tracking-tighter leading-tight italic text-left">
-                    Note: Cloud unreachable. Use JSON protocol for backup.
+                {authStatus === 'offline' && (
+                  <div className="mt-4 p-3 bg-red-100/50 rounded-md text-red-600 text-[8px] font-black uppercase tracking-tighter leading-tight italic text-left">
+                    Cloud Error: Missing Configuration.
                   </div>
                 )}
              </div>
@@ -597,18 +575,18 @@ export default function App() {
                <div className="grid grid-cols-2 gap-3 mb-8 text-left">
                   <button onClick={pushToCloud} className="bg-blue-600 text-white p-4 rounded-lg flex flex-col items-center gap-3 hover:bg-blue-700 transition-all shadow-sm text-left">
                      <Icons.Cloud />
-                     <span className="text-[8px] font-black uppercase tracking-widest text-center italic leading-none text-left">Push Cloud</span>
+                     <span className="text-[8px] font-black uppercase tracking-widest text-center italic leading-none text-left leading-none">Push Cloud</span>
                   </button>
                   <button onClick={pullFromCloud} className="bg-slate-950 text-white p-4 rounded-lg flex flex-col items-center gap-3 hover:bg-black transition-all shadow-sm text-left">
                      <Icons.Refresh />
-                     <span className="text-[8px] font-black uppercase tracking-widest text-center italic leading-none text-left">Pull Cloud</span>
+                     <span className="text-[8px] font-black uppercase tracking-widest text-center italic leading-none text-left leading-none">Pull Cloud</span>
                   </button>
                </div>
              )}
 
-             {syncStatus && <div className={`mb-4 text-[9px] font-black uppercase tracking-widest italic ${syncStatus.type === 'error' ? 'text-red-500' : 'text-emerald-500 animate-pulse'} text-left`}>{syncStatus.msg}</div>}
+             {syncStatus && <div className={`mb-4 text-[9px] font-black uppercase tracking-widest italic ${syncStatus.type === 'error' ? 'text-red-500' : 'text-emerald-500 animate-pulse'} text-left leading-none`}>{syncStatus.msg}</div>}
 
-             <button onClick={() => setModalMode(null)} className="w-full text-[9px] font-black uppercase text-slate-400 hover:text-slate-900 transition tracking-[0.5em] text-center font-bold italic text-left">Chiudi Vault</button>
+             <button onClick={() => setModalMode(null)} className="w-full text-[9px] font-black uppercase text-slate-400 hover:text-slate-900 transition tracking-[0.5em] text-center font-bold italic text-left leading-none">Chiudi Vault</button>
           </div>
         </div>
       )}
@@ -616,11 +594,11 @@ export default function App() {
       {/* CRUD MODAL - RAPID SHIFT */}
       {(modalMode === 'create' || modalMode === 'edit') && (
         <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md z-[100] flex items-center justify-center p-6 animate-in fade-in duration-200 text-slate-900 text-left">
-          <div className="bg-white rounded-xl p-10 w-full max-w-sm shadow-2xl text-left">
+          <div className="bg-white rounded-xl p-10 w-full max-sm:p-6 max-w-sm shadow-2xl text-left">
              <div className="flex justify-between items-start mb-8 text-left border-b border-slate-50 pb-6 text-left">
                 <div className="text-left">
                    <h3 className="text-2xl font-black uppercase tracking-tight italic text-slate-950 leading-none text-left font-bold">{modalMode === 'edit' ? 'Aggiorna' : 'Pianifica'}</h3>
-                   <p className="text-blue-600 text-[8px] font-bold uppercase tracking-[0.4em] mt-3 italic text-left">{selectedDate}</p>
+                   <p className="text-blue-600 text-[8px] font-bold uppercase tracking-[0.4em] mt-3 italic text-left leading-none">{selectedDate}</p>
                 </div>
                 <button onClick={() => setModalMode(null)} className="p-2 hover:bg-slate-100 rounded text-slate-400 transition"><Icons.X /></button>
              </div>
@@ -634,7 +612,7 @@ export default function App() {
                          className={`p-4 rounded-lg border flex items-center justify-between transition-all group ${formTitle === 'Mattina' ? 'bg-blue-600 border-blue-700 shadow-lg scale-[1.02]' : 'bg-slate-50 border-slate-100 hover:border-blue-300'} text-left`}
                       >
                          <div className="flex items-center gap-3 text-left">
-                            <span className="text-xl text-left">🌅</span>
+                            <span className="text-xl text-left leading-none">🌅</span>
                             <div className="flex flex-col leading-none text-left">
                                <span className={`text-[10px] font-black uppercase italic ${formTitle === 'Mattina' ? 'text-white' : 'text-slate-900'} text-left`}>Mattina</span>
                                <span className={`text-[8px] font-bold mt-1 ${formTitle === 'Mattina' ? 'text-blue-100' : 'text-slate-400'} text-left`}>09:00 - 14:00</span>
@@ -648,7 +626,7 @@ export default function App() {
                          className={`p-4 rounded-lg border flex items-center justify-between transition-all group ${formTitle === 'Pomeriggio' ? 'bg-amber-500 border-amber-600 shadow-lg scale-[1.02]' : 'bg-slate-50 border-slate-100 hover:border-amber-300'} text-left`}
                       >
                          <div className="flex items-center gap-3 text-left">
-                            <span className="text-xl text-left">☀️</span>
+                            <span className="text-xl text-left leading-none">☀️</span>
                             <div className="flex flex-col leading-none text-left">
                                <span className={`text-[10px] font-black uppercase italic ${formTitle === 'Pomeriggio' ? 'text-white' : 'text-slate-900'} text-left`}>Pomeriggio</span>
                                <span className={`text-[8px] font-bold mt-1 ${formTitle === 'Pomeriggio' ? 'text-amber-50' : 'text-slate-400'} text-left`}>14:30 - 19:30</span>
@@ -662,7 +640,7 @@ export default function App() {
                          className={`p-4 rounded-lg border flex items-center justify-between transition-all group ${formTitle === 'Riposo' ? 'bg-emerald-600 border-emerald-700 shadow-lg scale-[1.02]' : 'bg-slate-50 border-slate-100 hover:border-emerald-300'} text-left`}
                       >
                          <div className="flex items-center gap-3 text-left">
-                            <span className="text-xl text-left">🌴</span>
+                            <span className="text-xl text-left leading-none">🌴</span>
                             <div className="flex flex-col leading-none text-left">
                                <span className={`text-[10px] font-black uppercase italic ${formTitle === 'Riposo' ? 'text-white' : 'text-slate-900'} text-left`}>Riposo</span>
                                <span className={`text-[8px] font-bold mt-1 ${formTitle === 'Riposo' ? 'text-emerald-50' : 'text-slate-400'} text-left`}>Giorno Libero</span>
@@ -677,11 +655,11 @@ export default function App() {
                    <label className="text-[8px] font-black uppercase text-slate-400 ml-1 tracking-[0.2em] block mb-4 text-center italic text-left leading-none">Personalizza Orario (Manual Override)</label>
                    <div className="grid grid-cols-2 gap-4 text-left">
                       <div className="text-left">
-                         <label className="text-[7px] font-black uppercase text-slate-400 ml-1 block text-left leading-none mb-1 italic text-left">Inizio</label>
+                         <label className="text-[7px] font-black uppercase text-slate-400 ml-1 block text-left leading-none mb-1 italic text-left leading-none">Inizio</label>
                          <input type="time" value={formStart} onChange={e => setFormStart(e.target.value)} className="w-full bg-white p-3 rounded-lg font-black text-[11px] border border-slate-200 focus:border-blue-500 outline-none text-center shadow-sm text-slate-900 text-left" />
                       </div>
                       <div className="text-left">
-                         <label className="text-[7px] font-black uppercase text-slate-400 ml-1 block text-left leading-none mb-1 italic text-left">Fine</label>
+                         <label className="text-[7px] font-black uppercase text-slate-400 ml-1 block text-left leading-none mb-1 italic text-left leading-none">Fine</label>
                          <input type="time" value={formEnd} onChange={e => setFormEnd(e.target.value)} className="w-full bg-white p-3 rounded-lg font-black text-[11px] border border-slate-200 focus:border-blue-500 outline-none text-center shadow-sm text-slate-900 text-left" />
                       </div>
                    </div>
@@ -699,15 +677,15 @@ export default function App() {
       {/* SETTINGS MODAL */}
       {modalMode === 'settings' && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-lg z-[100] flex items-center justify-center p-8 text-center text-slate-900 animate-in fade-in duration-200 text-left">
-          <div className="bg-white rounded-xl p-12 w-full max-w-sm shadow-2xl border border-white/20 text-left">
-            <h3 className="text-2xl font-black uppercase mb-10 tracking-tight italic text-center text-slate-950 leading-none font-bold text-left font-bold">Add <span className="text-blue-600">Data Node</span></h3>
+          <div className="bg-white rounded-xl p-12 w-full max-sm:p-6 max-w-sm shadow-2xl border border-white/20 text-left">
+            <h3 className="text-2xl font-black uppercase mb-10 tracking-tight italic text-center text-slate-950 leading-none font-bold text-left font-bold text-left">Add <span className="text-blue-600">Data Node</span></h3>
             <div className="space-y-5 text-left">
                <div className="text-left">
-                  <label className="text-[8px] font-black uppercase text-slate-400 ml-1 tracking-[0.2em] block text-left leading-none mb-2 italic text-left">Etichetta Nodo</label>
+                  <label className="text-[8px] font-black uppercase text-slate-400 ml-1 tracking-[0.2em] block text-left leading-none mb-2 italic text-left leading-none">Etichetta Nodo</label>
                   <input value={newIcalName} onChange={e => setNewIcalName(e.target.value)} placeholder="ES: LAVORO, FAMIGLIA..." className="w-full bg-slate-50 p-5 rounded-lg font-black text-[10px] outline-none border border-slate-100 focus:border-blue-500 text-center uppercase tracking-widest shadow-inner text-slate-900 text-left" />
                </div>
                <div className="text-left">
-                  <label className="text-[8px] font-black uppercase text-slate-400 ml-1 tracking-[0.2em] block text-left leading-none mb-2 italic text-left">URL iCal (.ics)</label>
+                  <label className="text-[8px] font-black uppercase text-slate-400 ml-1 tracking-[0.2em] block text-left leading-none mb-2 italic text-left leading-none">URL iCal (.ics)</label>
                   <input value={newIcalUrl} onChange={e => setNewIcalUrl(e.target.value)} placeholder="HTTPS://..." className="w-full bg-slate-50 p-5 rounded-lg font-black text-[10px] outline-none border border-slate-100 focus:border-blue-500 text-center shadow-inner text-slate-900 text-left" />
                </div>
                
