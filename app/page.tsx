@@ -18,12 +18,12 @@ import {
 } from 'firebase/firestore';
 
 /**
- * CALENDARIO TITANIO V70 - OBSIDIAN CHROME-NODE
+ * CALENDARIO TITANIO V71 - OBSIDIAN STABLE
  * MENTORE DOCET: 
- * 1. NODE COLOR PICKER: Scelta del colore per ogni sorgente iCal per distinzione immediata.
- * 2. CHRONO-RANGE PERSISTENCE: Orario Inizio-Fine visibile ovunque.
- * 3. RAPID-SHIFT PRESETS: Mantenuti i 3 tasti rapidi per i turni manuali.
- * 4. OBSIDIAN PRECISION: Ordinamento cronologico e pulizia visiva totale.
+ * 1. FIX CRASH: Ripristinate le icone ChevronLeft/Right mancanti che causavano l'eccezione.
+ * 2. STABILITY FIRST: Nessuna modifica alla logica turni, solo correzione strutturale.
+ * 3. NODE COLOR PICKER: Confermato il selettore colore per iCal.
+ * 4. RAPID-SHIFT: Confermati i 3 tasti rapidi (Mattina, Pomeriggio, Riposo).
  */
 
 const Icons = {
@@ -37,7 +37,8 @@ const Icons = {
   Cloud: () => <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>,
   Trash: () => <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/></svg>,
   Sun: () => <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#3b82f6" strokeWidth="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41M2 12h2"/></svg>,
-  Chevron: () => <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="3"><path d="m15 18-6-6 6-6"/></svg>,
+  ChevronLeft: () => <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="3"><path d="m15 18-6-6 6-6"/></svg>,
+  ChevronRight: () => <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="3"><path d="m9 18 6-6-6-6"/></svg>,
   Plus: () => <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="3"><path d="M12 5v14M5 12h14"/></svg>,
   X: () => <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="3"><path d="M18 6 6 18M6 6l12 12"/></svg>,
   Download: () => <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>,
@@ -114,8 +115,8 @@ export default function App() {
   useEffect(() => {
     isMounted.current = true;
     try {
-      const sEvs = localStorage.getItem('titanio_v70_events');
-      const sIcal = localStorage.getItem('titanio_v70_ical');
+      const sEvs = localStorage.getItem('titanio_v71_events');
+      const sIcal = localStorage.getItem('titanio_v71_ical');
       if (sEvs) setEvents(JSON.parse(sEvs));
       if (sIcal) setIcalSources(JSON.parse(sIcal));
     } catch (e) {}
@@ -138,7 +139,7 @@ export default function App() {
         const app = getApps().length === 0 ? initializeApp(config) : getApps()[0];
         const auth = getAuth(app);
         const firestore = getFirestore(app);
-        setAppId(aid || 'titanio-v70');
+        setAppId(aid || 'titanio-v71');
         setDb(firestore);
         onAuthStateChanged(auth, (u) => {
           if (isMounted.current) { setUser(u); if (u) setAuthStatus('connected'); setInitializing(false); }
@@ -154,12 +155,12 @@ export default function App() {
   // 2. AUTO-SAVE
   useEffect(() => {
     if (!initializing) {
-      localStorage.setItem('titanio_v70_events', JSON.stringify(events || []));
-      localStorage.setItem('titanio_v70_ical', JSON.stringify(icalSources || []));
+      localStorage.setItem('titanio_v71_events', JSON.stringify(events || []));
+      localStorage.setItem('titanio_v71_ical', JSON.stringify(icalSources || []));
     }
   }, [events, icalSources, initializing]);
 
-  // 3. iCAL ENGINE (CHROME-NODE COLOR SYNC)
+  // 3. iCAL ENGINE
   const fetchIcal = async () => {
     const active = (icalSources || []).filter(s => s?.url?.startsWith('http'));
     if (active.length === 0) { setIcalEvents([]); return; }
@@ -248,7 +249,7 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `titanio_v70_backup.json`;
+    a.download = `titanio_v71_backup.json`;
     a.click();
     setSyncStatus({ type: 'success', msg: 'File Generato' });
     setTimeout(() => setSyncStatus(null), 2000);
@@ -274,20 +275,20 @@ export default function App() {
 
   if (initializing && events.length === 0) return (
     <div className="h-screen flex flex-col items-center justify-center bg-slate-950 text-white font-black">
-      <div className="text-[10px] tracking-[0.5em] animate-pulse italic uppercase text-blue-500 mb-2">Titanio Chrome-Node V70</div>
-      <div className="text-[7px] opacity-40 uppercase tracking-widest italic text-center">Iniezione Protocollo Obsidian...</div>
+      <div className="text-[10px] tracking-[0.5em] animate-pulse italic uppercase text-blue-500 mb-2">Titanio Stable V71</div>
+      <div className="text-[7px] opacity-40 uppercase tracking-widest italic text-center">Riparazione Kernel Obsidian...</div>
     </div>
   );
 
   return (
     <div className="flex h-screen w-full bg-white font-sans text-slate-900 overflow-hidden relative selection:bg-blue-100 text-left">
-      <div className="absolute top-2 left-2 z-[100] bg-black text-white text-[7px] px-2 py-0.5 rounded-sm font-black opacity-20 uppercase tracking-widest pointer-events-none italic">CHROME-NODE V70</div>
+      <div className="absolute top-2 left-2 z-[100] bg-black text-white text-[7px] px-2 py-0.5 rounded-sm font-black opacity-20 uppercase tracking-widest pointer-events-none italic">STABLE V71</div>
 
       {/* SIDEBAR */}
       <aside className="w-80 shrink-0 bg-slate-950 text-white p-6 flex flex-col hidden lg:flex shadow-2xl z-20 border-r border-white/5">
         <div className="flex items-center gap-3 mb-10">
           <Icons.Logo />
-          <h2 className="text-lg font-black uppercase tracking-tight italic leading-none text-left">Titanio<br/><span className="text-blue-500 text-[10px] text-left">Chrome-Node Suite</span></h2>
+          <h2 className="text-lg font-black uppercase tracking-tight italic leading-none text-left">Titanio<br/><span className="text-blue-500 text-[10px] text-left">Obsidian Precision</span></h2>
         </div>
 
         <div className="bg-white/[0.02] rounded-lg p-5 mb-8 border border-white/5 text-left relative overflow-hidden shadow-inner">
@@ -295,13 +296,13 @@ export default function App() {
               <div className="text-left">
                  <div className={`text-[8px] font-black uppercase tracking-widest mb-1 flex items-center gap-2 ${authStatus === 'connected' ? 'text-emerald-500' : 'text-slate-500'}`}>
                     <div className={`w-1.5 h-1.5 rounded-full ${authStatus === 'connected' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-slate-600'}`}></div>
-                    {authStatus === 'connected' ? 'Cloud Linked' : 'Standalone Mode'}
+                    {authStatus === 'connected' ? 'Cloud Link' : 'Local Node'}
                  </div>
-                 <div className="text-[10px] font-bold text-slate-500 italic uppercase tracking-tighter">Terminal: Ghedi-Chrome-01</div>
+                 <div className="text-[10px] font-bold text-slate-500 italic uppercase tracking-tighter text-left">Ghedi-Terminal-V71</div>
               </div>
               <Icons.Sun />
            </div>
-           <div className="text-4xl font-black tracking-tighter mt-4 text-white text-left italic">18<span className="text-blue-500 font-light">°</span></div>
+           <div className="text-4xl font-black tracking-tighter mt-4 text-white text-left italic leading-none">18<span className="text-blue-500 font-light text-left">°</span></div>
         </div>
 
         <div className="flex-1 overflow-hidden flex flex-col text-left">
@@ -322,7 +323,7 @@ export default function App() {
                            <div className={`w-1.5 h-1.5 rounded-full ${color.dot}`}></div>
                            <span className="text-[10px] font-black text-slate-200 truncate uppercase tracking-tighter leading-none">{s?.name || 'Node'}</span>
                         </div>
-                        <span className="text-[7px] text-slate-600 font-bold uppercase tracking-widest mt-1 text-left">{icalStatuses[s?.url] || 'Syncing...'}</span>
+                        <span className="text-[7px] text-slate-600 font-bold uppercase tracking-widest mt-1 text-left leading-none">{icalStatuses[s?.url] || 'Syncing...'}</span>
                      </div>
                      <button onClick={() => setIcalSources(icalSources.filter((_, idx) => idx !== i))} className="text-red-500 opacity-0 group-hover:opacity-100 transition p-1"><Icons.X /></button>
                   </div>
@@ -337,8 +338,8 @@ export default function App() {
         <header className="bg-white px-8 py-4 flex justify-between items-center z-10 border-b border-slate-100 text-left shadow-sm">
           <div className="flex items-center gap-6 text-left">
              <div className="flex flex-col min-w-[140px] text-left">
-                <h1 className="text-2xl font-black tracking-tighter uppercase leading-none text-slate-900 italic text-left">{currentDate.toLocaleString('it-IT', { month: 'long' })}</h1>
-                <span className="text-[9px] font-bold text-slate-300 uppercase tracking-[0.3em] text-left">{currentDate.getFullYear()}</span>
+                <h1 className="text-2xl font-black tracking-tighter uppercase leading-none text-slate-900 italic text-left leading-none">{currentDate.toLocaleString('it-IT', { month: 'long' })}</h1>
+                <span className="text-[9px] font-bold text-slate-300 uppercase tracking-[0.3em] text-left leading-none">{currentDate.getFullYear()}</span>
              </div>
              <div className="flex bg-slate-50 rounded p-0.5 border border-slate-100 shadow-inner">
                 <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth()-1)))} className="p-2 hover:bg-white rounded transition text-slate-400"><Icons.ChevronLeft /></button>
@@ -348,7 +349,7 @@ export default function App() {
           </div>
           
           <div className="flex items-center gap-3">
-             <div className="bg-slate-50 p-0.5 rounded flex border border-slate-100">
+             <div className="bg-slate-50 p-0.5 rounded flex border border-slate-100 shadow-inner">
                 {['month', 'week', 'day'].map((v: any) => (
                   <button key={v} onClick={() => setView(v)} className={`px-4 py-1.5 rounded text-[8px] font-black uppercase tracking-widest transition-all ${view === v ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400'}`}>{v}</button>
                 ))}
@@ -371,7 +372,7 @@ export default function App() {
                  const dayEvents = Utils.sortEvents(allEvents.filter(e => e.date === ds));
 
                  return (
-                   <div key={i} onClick={() => openModal('create', ds)} className={`bg-white p-2 min-h-[120px] cursor-pointer border border-slate-100 transition-all flex flex-col ${!isCurMonth ? 'opacity-20 grayscale' : ''} ${isToday ? 'border-blue-500 border-2 z-10 shadow-lg' : ''}`}>
+                   <div key={i} onClick={() => openModal('create', ds)} className={`bg-white p-2 min-h-[120px] cursor-pointer border border-slate-100 transition-all flex flex-col ${!isCurMonth ? 'opacity-20 grayscale' : ''} ${isToday ? 'border-blue-500 border-2 z-10 shadow-lg shadow-blue-500/10' : ''}`}>
                       <div className={`text-[10px] font-black w-6 h-6 flex items-center justify-center rounded-sm mb-2 ${isToday ? 'bg-blue-600 text-white shadow-md' : 'text-slate-300'}`}>{d.getDate()}</div>
                       <div className="space-y-0.5 overflow-hidden flex-1 text-left">
                         {dayEvents.map(e => (
@@ -404,18 +405,18 @@ export default function App() {
                         <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">{d.toLocaleString('it-IT', { weekday: 'short' })}</div>
                         <div className={`text-2xl font-black ${isToday ? 'text-blue-600' : 'text-slate-900'}`}>{d.getDate()}</div>
                       </div>
-                      <div className="flex-1 p-2 space-y-1 overflow-y-auto no-scrollbar text-left">
+                      <div className="flex-1 p-2 space-y-1 overflow-y-auto no-scrollbar text-left pr-1">
                          {dayEvents.map(e => (
                            <div key={e.id} onClick={() => { if(!e.isReadOnly) { openModal('edit', e.date, e); } }} className={`${e.color || 'bg-slate-50'} p-3 rounded border border-black/5 flex flex-col cursor-pointer transition-all hover:translate-x-1 shadow-sm`}>
                               <div className="flex justify-between items-start mb-1">
-                                 <span className="text-[9px] font-black uppercase truncate leading-none w-[60%]">{e.title}</span>
+                                 <span className="text-[9px] font-black uppercase truncate leading-none w-[60%] text-left">{e.title}</span>
                                  <span className="text-[7px] font-bold bg-black/5 px-1 rounded uppercase tracking-tighter">{e.startTime}-{e.endTime}</span>
                               </div>
                               {e.dot && <div className={`h-0.5 w-full rounded-full ${e.dot} mt-1 opacity-40`}></div>}
                            </div>
                          ))}
                       </div>
-                      <button onClick={() => openModal('create', ds)} className="m-2 py-2 bg-slate-50 rounded text-[9px] text-slate-400 hover:text-blue-600 transition font-black uppercase tracking-widest border border-dashed border-slate-200 shadow-inner">Add</button>
+                      <button onClick={() => openModal('create', ds)} className="m-2 py-2 bg-slate-50 rounded text-[9px] text-slate-400 hover:text-blue-600 transition font-black uppercase tracking-widest border border-dashed border-slate-200 shadow-inner italic">Inserisci</button>
                    </div>
                  );
                })}
@@ -426,9 +427,9 @@ export default function App() {
              <div className="max-w-3xl mx-auto h-full flex flex-col py-8 px-4">
                 <div className="bg-white rounded-xl p-12 border border-slate-100 shadow-2xl flex-1 flex flex-col text-left">
                    <div className="mb-10 pb-10 border-b border-slate-100 text-left flex justify-between items-end">
-                      <div>
+                      <div className="text-left">
                          <h2 className="text-5xl font-black text-slate-950 uppercase tracking-tighter leading-none mb-3 italic text-left">{currentDate.toLocaleString('it-IT', { weekday: 'long' })}</h2>
-                         <p className="text-blue-600 font-bold uppercase tracking-[0.6em] text-[10px] text-left">{currentDate.getDate()} {currentDate.toLocaleString('it-IT', { month: 'long' })} {currentDate.getFullYear()}</p>
+                         <p className="text-blue-600 font-bold uppercase tracking-[0.6em] text-[10px] text-left leading-none">{currentDate.getDate()} {currentDate.toLocaleString('it-IT', { month: 'long' })} {currentDate.getFullYear()}</p>
                       </div>
                       <div className="text-slate-200 font-black text-6xl tracking-tighter select-none opacity-20 italic uppercase leading-none">{currentDate.getDate()}</div>
                    </div>
@@ -436,21 +437,21 @@ export default function App() {
                    <div className="flex-1 space-y-4 overflow-y-auto no-scrollbar pr-4">
                       {Utils.sortEvents(allEvents.filter(e => e.date === Utils.fmtDate(currentDate))).map(e => (
                         <div key={e.id} onClick={() => { if(!e.isReadOnly) { openModal('edit', e.date, e); } }} className={`${e.color || 'bg-slate-50'} p-6 rounded-lg border border-black/5 flex items-center gap-8 cursor-pointer transition-all hover:scale-[1.01] shadow-md group`}>
-                           <div className="w-28 shrink-0 flex flex-col border-r border-black/5 pr-6">
-                              <span className="text-sm font-black text-slate-900 leading-none">{e.startTime} - {e.endTime}</span>
-                              <span className="text-[8px] font-bold opacity-30 uppercase tracking-[0.2em] mt-2">{e.startTime === 'G' ? 'ALL DAY' : 'CHRONO RANGE'}</span>
+                           <div className="w-28 shrink-0 flex flex-col border-r border-black/5 pr-6 text-left">
+                              <span className="text-sm font-black text-slate-900 leading-none text-left">{e.startTime} - {e.endTime}</span>
+                              <span className="text-[8px] font-bold opacity-30 uppercase tracking-[0.2em] mt-2 text-left leading-none italic">{e.startTime === 'G' ? 'ALL DAY' : 'RANGE'}</span>
                            </div>
-                           <div className="flex-1">
+                           <div className="flex-1 text-left">
                               <div className="text-xl font-black uppercase tracking-tight text-slate-950 leading-none mb-1 italic group-hover:text-blue-600 transition text-left">{e.title}</div>
-                              <div className="flex items-center gap-2 opacity-40">
+                              <div className="flex items-center gap-2 opacity-40 text-left">
                                  {e.dot && <div className={`w-2 h-2 rounded-full ${e.dot}`}></div>}
-                                 <div className="text-[10px] font-bold uppercase tracking-widest">{e.isReadOnly ? 'Node Synced' : 'Manual Precision Entry'}</div>
+                                 <div className="text-[10px] font-bold uppercase tracking-widest text-left leading-none">{e.isReadOnly ? 'Node Synced' : 'Manual Precision Entry'}</div>
                               </div>
                            </div>
                            {!e.isReadOnly && <div onClick={(ev) => { ev.stopPropagation(); setEvents(events.filter(ev => ev.id !== e.id)); }} className="text-red-500 opacity-20 hover:opacity-100 transition p-2"><Icons.Trash /></div>}
                         </div>
                       ))}
-                      <button onClick={() => openModal('create', Utils.fmtDate(currentDate))} className="w-full py-10 rounded-lg border-2 border-dashed border-slate-100 text-slate-300 font-black uppercase text-[10px] tracking-[1em] hover:border-blue-500 hover:text-blue-500 transition-all shadow-inner mt-6">+ Nuova Entry</button>
+                      <button onClick={() => openModal('create', Utils.fmtDate(currentDate))} className="w-full py-10 rounded-lg border-2 border-dashed border-slate-100 text-slate-300 font-black uppercase text-[10px] tracking-[1em] hover:border-blue-500 hover:text-blue-500 transition-all shadow-inner mt-6 italic">+ Nuova Entry</button>
                    </div>
                 </div>
              </div>
@@ -461,14 +462,14 @@ export default function App() {
       {/* DATA VAULT */}
       {modalMode === 'sync' && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[100] flex items-center justify-center p-6 text-center text-slate-900 animate-in fade-in duration-200">
-          <div className="bg-white rounded-xl p-10 w-full max-sm shadow-2xl">
+          <div className="bg-white rounded-xl p-10 w-full max-w-sm shadow-2xl">
              <div className="w-16 h-16 rounded-xl flex items-center justify-center mx-auto mb-6 bg-blue-50 text-blue-600 shadow-sm"><Icons.Cloud /></div>
              <h3 className="text-2xl font-black uppercase mb-8 tracking-tight italic text-slate-950 text-center leading-none">Data <span className="text-blue-600">Precision Vault</span></h3>
              
              <div className="mb-10 p-6 bg-slate-50 border border-slate-100 rounded-lg text-left overflow-hidden">
                 <div className="flex items-center gap-2 mb-3 border-b border-slate-200 pb-2">
                    <Icons.Terminal />
-                   <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Diagnostic Log</span>
+                   <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Diagnostic Terminal</span>
                 </div>
                 <div className="space-y-1">
                    {Object.entries(debugLog).map(([k, v]) => (
@@ -492,7 +493,7 @@ export default function App() {
                 <input type="file" ref={fileInputRef} onChange={importBackup} accept=".json" className="hidden" />
              </div>
 
-             <button onClick={() => setModalMode(null)} className="w-full text-[9px] font-black uppercase text-slate-400 hover:text-slate-900 transition tracking-[0.5em] text-center font-bold">Esci</button>
+             <button onClick={() => setModalMode(null)} className="w-full text-[9px] font-black uppercase text-slate-400 hover:text-slate-900 transition tracking-[0.5em] text-center font-bold italic">Esci</button>
           </div>
         </div>
       )}
@@ -557,22 +558,22 @@ export default function App() {
                    </div>
                 </div>
 
-                <div className="bg-slate-50 p-6 rounded-xl border border-slate-100">
+                <div className="bg-slate-50 p-6 rounded-xl border border-slate-100 shadow-inner">
                    <label className="text-[8px] font-black uppercase text-slate-400 ml-1 tracking-[0.2em] block mb-4 text-center italic">Personalizza Orario (Override)</label>
                    <div className="grid grid-cols-2 gap-4">
                       <div className="text-left">
-                         <label className="text-[7px] font-black uppercase text-slate-400 ml-1 block text-left">Inizio</label>
-                         <input type="time" value={formStart} onChange={e => setFormStart(e.target.value)} className="w-full bg-white p-3 rounded-lg font-black text-[11px] border border-slate-200 focus:border-blue-500 outline-none text-center shadow-sm" />
+                         <label className="text-[7px] font-black uppercase text-slate-400 ml-1 block text-left leading-none mb-1">Inizio</label>
+                         <input type="time" value={formStart} onChange={e => setFormStart(e.target.value)} className="w-full bg-white p-3 rounded-lg font-black text-[11px] border border-slate-200 focus:border-blue-500 outline-none text-center shadow-sm text-slate-900" />
                       </div>
                       <div className="text-left">
-                         <label className="text-[7px] font-black uppercase text-slate-400 ml-1 block text-left">Fine</label>
-                         <input type="time" value={formEnd} onChange={e => setFormEnd(e.target.value)} className="w-full bg-white p-3 rounded-lg font-black text-[11px] border border-slate-200 focus:border-blue-500 outline-none text-center shadow-sm" />
+                         <label className="text-[7px] font-black uppercase text-slate-400 ml-1 block text-left leading-none mb-1">Fine</label>
+                         <input type="time" value={formEnd} onChange={e => setFormEnd(e.target.value)} className="w-full bg-white p-3 rounded-lg font-black text-[11px] border border-slate-200 focus:border-blue-500 outline-none text-center shadow-sm text-slate-900" />
                       </div>
                    </div>
                 </div>
 
                 <div className="flex gap-3">
-                   <button onClick={() => setModalMode(null)} className="flex-1 text-[9px] font-black uppercase text-slate-400 hover:text-slate-900 transition tracking-[0.3em] font-bold py-4 italic">Esci</button>
+                   <button onClick={() => setModalMode(null)} className="flex-1 text-[9px] font-black uppercase text-slate-400 hover:text-slate-900 transition tracking-[0.3em] font-bold py-4 italic">Annulla</button>
                    <button onClick={handleSave} className="flex-[2] bg-slate-950 text-white py-4 rounded-xl font-black uppercase text-[10px] hover:bg-black transition-all shadow-xl tracking-widest italic">Salva Turno</button>
                 </div>
              </div>
@@ -587,12 +588,12 @@ export default function App() {
             <h3 className="text-2xl font-black uppercase mb-10 tracking-tight italic text-center text-slate-950 leading-none font-bold">Add <span className="text-blue-600">Data Node</span></h3>
             <div className="space-y-5">
                <div className="text-left">
-                  <label className="text-[8px] font-black uppercase text-slate-400 ml-1 tracking-[0.2em] block text-left">Etichetta Nodo</label>
-                  <input value={newIcalName} onChange={e => setNewIcalName(e.target.value)} placeholder="ES: LAVORO, FAMIGLIA..." className="w-full bg-slate-50 p-5 rounded-lg font-black text-[10px] outline-none border border-slate-100 focus:border-blue-500 text-center uppercase tracking-widest shadow-inner mt-1 text-slate-900" />
+                  <label className="text-[8px] font-black uppercase text-slate-400 ml-1 tracking-[0.2em] block text-left leading-none mb-2">Etichetta Nodo</label>
+                  <input value={newIcalName} onChange={e => setNewIcalName(e.target.value)} placeholder="ES: LAVORO, FAMIGLIA..." className="w-full bg-slate-50 p-5 rounded-lg font-black text-[10px] outline-none border border-slate-100 focus:border-blue-500 text-center uppercase tracking-widest shadow-inner text-slate-900" />
                </div>
                <div className="text-left">
-                  <label className="text-[8px] font-black uppercase text-slate-400 ml-1 tracking-[0.2em] block text-left">URL iCal (.ics)</label>
-                  <input value={newIcalUrl} onChange={e => setNewIcalUrl(e.target.value)} placeholder="HTTPS://..." className="w-full bg-slate-50 p-5 rounded-lg font-black text-[10px] outline-none border border-slate-100 focus:border-blue-500 text-center shadow-inner mt-1 text-slate-900" />
+                  <label className="text-[8px] font-black uppercase text-slate-400 ml-1 tracking-[0.2em] block text-left leading-none mb-2">URL iCal (.ics)</label>
+                  <input value={newIcalUrl} onChange={e => setNewIcalUrl(e.target.value)} placeholder="HTTPS://..." className="w-full bg-slate-50 p-5 rounded-lg font-black text-[10px] outline-none border border-slate-100 focus:border-blue-500 text-center shadow-inner text-slate-900" />
                </div>
                
                <div className="pt-2">
