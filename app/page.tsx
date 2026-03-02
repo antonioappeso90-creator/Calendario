@@ -14,16 +14,18 @@ import {
   doc, 
   getDoc, 
   setDoc,
+  collection,
+  onSnapshot,
   Firestore
 } from 'firebase/firestore';
 
 /**
- * CALENDARIO TITANIO V72 - OBSIDIAN PRIORITY FOCUS
+ * CALENDARIO TITANIO V74 - OBSIDIAN IRON-GATE
  * MENTORE DOCET: 
- * 1. PRIORITY SORTING: I turni manuali (Lavoro) hanno priorità assoluta e stanno sempre in cima.
- * 2. VISUAL HIERARCHY: Design solido per i turni, design "ghost" per gli eventi iCal.
- * 3. RAPID-SHIFT ENGINE: Mantenuti i preset Mattina, Pomeriggio, Riposo.
- * 4. STABILITY: Fix definitivo per la navigazione e il rendering.
+ * 1. ZERO-ERROR POLICY: Risolti i ReferenceError su exportBackup e Cloud functions.
+ * 2. IRON PERSISTENCE: Blocco totale della scrittura finché il caricamento non è completo.
+ * 3. CLOUD SYNC: Implementata la sincronizzazione Firestore per evitare perdite tra dispositivi.
+ * 4. RAPID-SHIFT: Mantenuta la velocità di inserimento dei turni (Mattina/Pomeriggio/Riposo).
  */
 
 const Icons = {
@@ -66,12 +68,10 @@ const Utils = {
     if (typeof window === 'undefined') return undefined;
     return (window as any)[key];
   },
-  // PRIORITÀ: Manuali (!isReadOnly) > iCal (isReadOnly). Poi per orario.
   sortEvents: (evs: any[]) => {
     return [...evs].sort((a, b) => {
       if (!a.isReadOnly && b.isReadOnly) return -1;
       if (a.isReadOnly && !b.isReadOnly) return 1;
-      
       if (a.startTime === 'G' && b.startTime !== 'G') return -1;
       if (a.startTime !== 'G' && b.startTime === 'G') return 1;
       return a.startTime.localeCompare(b.startTime);
@@ -82,30 +82,31 @@ const Utils = {
 export default function App() {
   const isMounted = useRef(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const appId = typeof (window as any)?.__app_id !== 'undefined' ? (window as any)?.__app_id : 'titanio-v74';
   
   // --- DATABASE & AUTH ---
   const [user, setUser] = useState<User | null>(null);
   const [db, setDb] = useState<Firestore | null>(null);
-  const [appId, setAppId] = useState('');
   const [authStatus, setAuthStatus] = useState<'connected' | 'error' | 'loading' | 'offline'>('loading');
   const [debugLog, setDebugLog] = useState<Record<string, string>>({});
   
-  // --- DATA ---
+  // --- DATA & PERSISTENCE ---
   const [events, setEvents] = useState<any[]>([]);
   const [icalSources, setIcalSources] = useState<any[]>([]);
   const [icalEvents, setIcalEvents] = useState<any[]>([]);
   const [icalStatuses, setIcalStatuses] = useState<Record<string, string>>({});
   
+  const [initializing, setInitializing] = useState(true);
+  const [dataLoaded, setDataLoaded] = useState(false);
+
   // --- UI ---
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<'month' | 'week' | 'day'>('month');
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'sync' | 'settings' | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>(Utils.fmtDate(new Date()));
   const [editingEvent, setEditingEvent] = useState<any>(null);
-  const [initializing, setInitializing] = useState(true);
   const [syncStatus, setSyncStatus] = useState<{type: 'success'|'error'|'loading', msg: string} | null>(null);
 
-  // Form states
   const [formTitle, setFormTitle] = useState('');
   const [formStart, setFormStart] = useState('09:00');
   const [formEnd, setFormEnd] = useState('14:00');
@@ -115,54 +116,136 @@ export default function App() {
   const [newIcalUrl, setNewIcalUrl] = useState('');
   const [newIcalColor, setNewIcalColor] = useState('blue');
 
-  // 1. BOOTSTRAP
+  // --- HOISTED FUNCTIONS TO PREVENT REFERENCE ERRORS ---
+  const exportBackup = () => {
+    try {
+      const data = JSON.stringify({ events, icalSources }, null, 2);
+      const blob = new Blob([data], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `titanio_v74_backup_${Utils.fmtDate(new Date())}.json`;
+      a.click();
+      setSyncStatus({ type: 'success', msg: 'Backup Generato' });
+      setTimeout(() => setSyncStatus(null), 2000);
+    } catch (e) {
+      setSyncStatus({ type: 'error', msg: 'Errore Export' });
+    }
+  };
+
+  const importBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = JSON.parse(event.target?.result as string);
+        if (data.events) setEvents(data.events);
+        if (data.icalSources) setIcalSources(data.icalSources);
+        setSyncStatus({ type: 'success', msg: 'Dati Caricati' });
+        setModalMode(null);
+      } catch (err) {
+        setSyncStatus({ type: 'error', msg: 'File non valido' });
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const pushToCloud = async () => {
+    if (!user || !db) return;
+    setSyncStatus({ type: 'loading', msg: 'Salvataggio Cloud...' });
+    try {
+      const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'userData', 'main');
+      await setDoc(docRef, { events, icalSources, lastSync: new Date().toISOString() });
+      setSyncStatus({ type: 'success', msg: 'Sync Cloud Ok' });
+    } catch (e) {
+      setSyncStatus({ type: 'error', msg: 'Errore Cloud Write' });
+    }
+    setTimeout(() => setSyncStatus(null), 3000);
+  };
+
+  const pullFromCloud = async () => {
+    if (!user || !db) return;
+    setSyncStatus({ type: 'loading', msg: 'Recupero Cloud...' });
+    try {
+      const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'userData', 'main');
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data.events) setEvents(data.events);
+        if (data.icalSources) setIcalSources(data.icalSources);
+        setSyncStatus({ type: 'success', msg: 'Dati Recuperati' });
+      } else {
+        setSyncStatus({ type: 'error', msg: 'Nessun dato nel Cloud' });
+      }
+    } catch (e) {
+      setSyncStatus({ type: 'error', msg: 'Errore Cloud Read' });
+    }
+    setTimeout(() => setSyncStatus(null), 3000);
+  };
+
+  // 1. BOOTSTRAP - CRITICAL LOADING SEQUENCE
   useEffect(() => {
     isMounted.current = true;
+    
+    // Leggiamo SUBITO da LocalStorage
     try {
-      const sEvs = localStorage.getItem('titanio_v72_events');
-      const sIcal = localStorage.getItem('titanio_v72_ical');
+      const sEvs = localStorage.getItem('titanio_v74_events');
+      const sIcal = localStorage.getItem('titanio_v74_ical');
       if (sEvs) setEvents(JSON.parse(sEvs));
       if (sIcal) setIcalSources(JSON.parse(sIcal));
-    } catch (e) {}
+      setDataLoaded(true);
+    } catch (e) {
+      setDataLoaded(true);
+    }
 
     const connect = async () => {
-      const cfg = Utils.getGlobal('__firebase_config');
-      const aid = Utils.getGlobal('__app_id');
+      const cfgStr = Utils.getGlobal('__firebase_config');
       const tok = Utils.getGlobal('__initial_auth_token');
 
       setDebugLog({
-        config: cfg ? 'FOUND' : 'MISSING',
-        appId: aid ? 'FOUND' : 'DEFAULT',
+        config: cfgStr ? 'FOUND' : 'MISSING',
+        app: appId ? 'FOUND' : 'DEFAULT',
         token: tok ? 'FOUND' : 'MISSING'
       });
 
-      if (!cfg) { setAuthStatus('offline'); setInitializing(false); return; }
+      if (!cfgStr) { setAuthStatus('offline'); setInitializing(false); return; }
 
       try {
-        const config = typeof cfg === 'object' ? cfg : JSON.parse(cfg);
+        const config = typeof cfgStr === 'object' ? cfgStr : JSON.parse(cfgStr);
         const app = getApps().length === 0 ? initializeApp(config) : getApps()[0];
         const auth = getAuth(app);
         const firestore = getFirestore(app);
-        setAppId(aid || 'titanio-v72');
         setDb(firestore);
+
         onAuthStateChanged(auth, (u) => {
-          if (isMounted.current) { setUser(u); if (u) setAuthStatus('connected'); setInitializing(false); }
+          if (isMounted.current) { 
+            setUser(u); 
+            if (u) setAuthStatus('connected'); 
+            setInitializing(false); 
+          }
         });
+
         if (tok) await signInWithCustomToken(auth, tok).catch(() => signInAnonymously(auth));
         else await signInAnonymously(auth);
-      } catch (err) { setAuthStatus('offline'); setInitializing(false); }
+      } catch (err) { 
+        setAuthStatus('offline'); 
+        setInitializing(false); 
+      }
     };
+    
     setTimeout(connect, 1000);
     return () => { isMounted.current = false; };
   }, []);
 
-  // 2. AUTO-SAVE
+  // 2. AUTO-SAVE - PERSISTENCE SHIELD
   useEffect(() => {
-    if (!initializing) {
-      localStorage.setItem('titanio_v72_events', JSON.stringify(events || []));
-      localStorage.setItem('titanio_v72_ical', JSON.stringify(icalSources || []));
+    // Salviamo SOLO se i dati iniziali sono stati caricati e l'app è pronta
+    if (dataLoaded && !initializing) {
+      localStorage.setItem('titanio_v74_events', JSON.stringify(events || []));
+      localStorage.setItem('titanio_v74_ical', JSON.stringify(icalSources || []));
     }
-  }, [events, icalSources, initializing]);
+  }, [events, icalSources, dataLoaded, initializing]);
 
   // 3. iCAL ENGINE
   const fetchIcal = async () => {
@@ -194,7 +277,6 @@ export default function App() {
                 title: summary, 
                 startTime, 
                 endTime,
-                // Design GHOST per iCal
                 color: `${sColor.ghostBg} ${sColor.ghostText} ${sColor.ghostBorder}`,
                 dot: sColor.dot,
                 isReadOnly: true 
@@ -208,9 +290,9 @@ export default function App() {
     setIcalEvents(combined);
   };
 
-  useEffect(() => { fetchIcal(); }, [icalSources]);
+  useEffect(() => { if (dataLoaded) fetchIcal(); }, [icalSources, dataLoaded]);
 
-  // 4. CRUD LOGIC
+  // 4. MODAL LOGIC
   const openModal = (mode: 'create' | 'edit', date: string, event: any = null) => {
     setSelectedDate(date);
     setModalMode(mode);
@@ -219,7 +301,6 @@ export default function App() {
       setFormTitle(event.title);
       setFormStart(event.startTime);
       setFormEnd(event.endTime);
-      // Trova il colore originale
       const matchedColor = PALETTE.find(p => event.color.includes(p.bg)) || PALETTE[0];
       setFormColor(matchedColor);
     } else {
@@ -237,7 +318,6 @@ export default function App() {
       title: formTitle || 'Turno',
       startTime: formStart,
       endTime: formEnd,
-      // Design SOLID per Turni Manuali
       color: `${formColor.bg} ${formColor.text} ${formColor.border}`,
       dot: formColor.dot,
       isReadOnly: false
@@ -254,20 +334,20 @@ export default function App() {
 
   if (initializing && events.length === 0) return (
     <div className="h-screen flex flex-col items-center justify-center bg-slate-950 text-white font-black">
-      <div className="text-[10px] tracking-[0.5em] animate-pulse italic uppercase text-blue-500 mb-2">Titanio Priority V72</div>
-      <div className="text-[7px] opacity-40 uppercase tracking-widest italic text-center">Calibrazione Focus Executive...</div>
+      <div className="text-[10px] tracking-[0.5em] animate-pulse italic uppercase text-blue-500 mb-2">Titanio Iron-Gate V74</div>
+      <div className="text-[7px] opacity-40 uppercase tracking-widest italic text-center">Sigillatura Database...</div>
     </div>
   );
 
   return (
     <div className="flex h-screen w-full bg-white font-sans text-slate-900 overflow-hidden relative selection:bg-blue-100 text-left">
-      <div className="absolute top-2 left-2 z-[100] bg-black text-white text-[7px] px-2 py-0.5 rounded-sm font-black opacity-20 uppercase tracking-widest pointer-events-none italic">PRIORITY FOCUS V72</div>
+      <div className="absolute top-2 left-2 z-[100] bg-black text-white text-[7px] px-2 py-0.5 rounded-sm font-black opacity-20 uppercase tracking-widest pointer-events-none italic">IRON-GATE V74</div>
 
       {/* SIDEBAR */}
       <aside className="w-80 shrink-0 bg-slate-950 text-white p-6 flex flex-col hidden lg:flex shadow-2xl z-20 border-r border-white/5">
         <div className="flex items-center gap-3 mb-10">
           <Icons.Logo />
-          <h2 className="text-lg font-black uppercase tracking-tight italic leading-none text-left">Titanio<br/><span className="text-blue-500 text-[10px] text-left">Obsidian Focus</span></h2>
+          <h2 className="text-lg font-black uppercase tracking-tight italic leading-none text-left">Titanio<br/><span className="text-blue-500 text-[10px] text-left">Iron Persistence</span></h2>
         </div>
 
         <div className="bg-white/[0.02] rounded-lg p-5 mb-8 border border-white/5 text-left relative overflow-hidden shadow-inner">
@@ -275,9 +355,9 @@ export default function App() {
               <div className="text-left">
                  <div className={`text-[8px] font-black uppercase tracking-widest mb-1 flex items-center gap-2 ${authStatus === 'connected' ? 'text-emerald-500' : 'text-slate-500'}`}>
                     <div className={`w-1.5 h-1.5 rounded-full ${authStatus === 'connected' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-slate-600'}`}></div>
-                    {authStatus === 'connected' ? 'Node Linked' : 'Manual Control'}
+                    {authStatus === 'connected' ? 'Cloud Secure' : 'Local Guard'}
                  </div>
-                 <div className="text-[10px] font-bold text-slate-500 italic uppercase tracking-tighter text-left leading-none">Ghedi-Terminal-V72</div>
+                 <div className="text-[10px] font-bold text-slate-500 italic uppercase tracking-tighter text-left leading-none">Status: Stabilized</div>
               </div>
               <Icons.Sun />
            </div>
@@ -285,8 +365,8 @@ export default function App() {
         </div>
 
         <div className="flex-1 overflow-hidden flex flex-col text-left">
-           <div className="flex items-center justify-between mb-4 px-1">
-              <h3 className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">Data Nodes</h3>
+           <div className="flex items-center justify-between mb-4 px-1 text-left">
+              <h3 className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] text-left">Data Nodes</h3>
               <div className="flex gap-2">
                  <button onClick={fetchIcal} className="text-slate-600 hover:text-white transition"><Icons.Refresh /></button>
                  <button onClick={() => setModalMode('settings')} className="text-blue-500 text-[9px] font-black uppercase">Add</button>
@@ -302,7 +382,7 @@ export default function App() {
                            <div className={`w-1.5 h-1.5 rounded-full ${color.dot}`}></div>
                            <span className="text-[10px] font-black text-slate-200 truncate uppercase tracking-tighter leading-none">{s?.name || 'Node'}</span>
                         </div>
-                        <span className="text-[7px] text-slate-600 font-bold uppercase tracking-widest mt-1 text-left leading-none">{icalStatuses[s?.url] || 'Syncing...'}</span>
+                        <span className="text-[7px] text-slate-600 font-bold uppercase tracking-widest mt-1 text-left leading-none italic">{icalStatuses[s?.url] || 'Syncing...'}</span>
                      </div>
                      <button onClick={() => setIcalSources(icalSources.filter((_, idx) => idx !== i))} className="text-red-500 opacity-0 group-hover:opacity-100 transition p-1"><Icons.X /></button>
                   </div>
@@ -318,7 +398,7 @@ export default function App() {
           <div className="flex items-center gap-6 text-left">
              <div className="flex flex-col min-w-[140px] text-left">
                 <h1 className="text-2xl font-black tracking-tighter uppercase leading-none text-slate-900 italic text-left leading-none">{currentDate.toLocaleString('it-IT', { month: 'long' })}</h1>
-                <span className="text-[9px] font-bold text-slate-300 uppercase tracking-[0.3em] text-left leading-none">{currentDate.getFullYear()}</span>
+                <span className="text-[9px] font-bold text-slate-300 uppercase tracking-[0.3em] text-left leading-none italic">{currentDate.getFullYear()}</span>
              </div>
              <div className="flex bg-slate-50 rounded p-0.5 border border-slate-100 shadow-inner">
                 <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth()-1)))} className="p-2 hover:bg-white rounded transition text-slate-400"><Icons.ChevronLeft /></button>
@@ -333,7 +413,12 @@ export default function App() {
                   <button key={v} onClick={() => setView(v)} className={`px-4 py-1.5 rounded text-[8px] font-black uppercase tracking-widest transition-all ${view === v ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400'}`}>{v}</button>
                 ))}
              </div>
-             <button onClick={() => setModalMode('sync')} className="w-9 h-9 border border-slate-100 rounded flex items-center justify-center transition-all bg-white text-slate-900 hover:bg-slate-900 hover:text-white shadow-sm"><Icons.Cloud /></button>
+             <button 
+                onClick={() => setModalMode('sync')} 
+                className={`w-9 h-9 border rounded flex items-center justify-center transition-all shadow-sm ${authStatus === 'offline' ? 'border-amber-100 bg-amber-50/20 text-amber-500' : 'border-slate-100 bg-white text-slate-900 hover:bg-slate-900 hover:text-white'}`}
+             >
+                <Icons.Cloud />
+             </button>
              <button onClick={() => openModal('create', Utils.fmtDate(new Date()))} className="bg-blue-600 text-white h-9 px-5 rounded font-black text-[9px] uppercase tracking-widest shadow-lg hover:bg-blue-700 transition-all flex items-center gap-2 italic"><Icons.Plus /> Nuova Entry</button>
           </div>
         </header>
@@ -356,7 +441,7 @@ export default function App() {
                       <div className="space-y-0.5 overflow-hidden flex-1 text-left">
                         {dayEvents.map(e => (
                           <div key={e.id} onClick={(ev) => { ev.stopPropagation(); if(!e.isReadOnly) { openModal('edit', e.date, e); } }} 
-                             className={`${e.color} text-[7px] px-1.5 py-1.5 rounded border border-black/[0.05] font-black uppercase tracking-tighter truncate transition-all text-left leading-none shadow-sm flex items-center gap-1 ${!e.isReadOnly ? 'scale-[1.03] z-[2]' : 'opacity-60'}`}
+                             className={`${e.color} text-[7px] px-1.5 py-1.5 rounded border border-black/[0.05] font-black uppercase tracking-tighter truncate transition-all text-left leading-none shadow-sm flex items-center gap-1 ${!e.isReadOnly ? 'scale-[1.03] z-[2]' : 'opacity-60 grayscale-[0.5]'}`}
                           >
                              {!e.isReadOnly && <div className={`w-1 h-1 rounded-full shrink-0 ${e.dot}`}></div>}
                              <span className="opacity-60 shrink-0">{e.startTime}-{e.endTime}</span>
@@ -383,7 +468,7 @@ export default function App() {
                  return (
                    <div key={i} className={`bg-white flex flex-col border border-slate-100 h-full ${isToday ? 'border-blue-500 border-2 z-10 shadow-xl' : ''}`}>
                       <div className="text-center p-4 border-b border-slate-50 bg-slate-50/50">
-                        <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">{d.toLocaleString('it-IT', { weekday: 'short' })}</div>
+                        <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none italic">{d.toLocaleString('it-IT', { weekday: 'short' })}</div>
                         <div className={`text-2xl font-black ${isToday ? 'text-blue-600' : 'text-slate-900'}`}>{d.getDate()}</div>
                       </div>
                       <div className="flex-1 p-2 space-y-2 overflow-y-auto no-scrollbar text-left pr-1">
@@ -391,18 +476,18 @@ export default function App() {
                            <div key={e.id} onClick={() => { if(!e.isReadOnly) { openModal('edit', e.date, e); } }} 
                               className={`${e.color} p-4 rounded-lg border border-black/5 flex flex-col cursor-pointer transition-all shadow-sm ${!e.isReadOnly ? 'border-l-4' : 'opacity-60 grayscale-[0.3]'}`}
                            >
-                              <div className="flex justify-between items-start mb-1">
-                                 <span className={`text-[10px] font-black uppercase truncate leading-none w-[65%] text-left ${!e.isReadOnly ? 'tracking-tighter italic' : ''}`}>{e.title}</span>
+                              <div className="flex justify-between items-start mb-1 text-left">
+                                 <span className={`text-[10px] font-black uppercase truncate leading-none w-[65%] text-left italic ${!e.isReadOnly ? 'tracking-tighter' : ''}`}>{e.title}</span>
                                  <span className="text-[7px] font-bold bg-black/10 px-1 rounded uppercase tracking-tighter">{e.startTime}-{e.endTime}</span>
                               </div>
                               <div className="flex items-center gap-1 mt-1 opacity-50">
                                  <Icons.Clock />
-                                 <span className="text-[7px] font-black uppercase tracking-widest">{e.isReadOnly ? 'Synced Node' : 'Primary Shift'}</span>
+                                 <span className="text-[7px] font-black uppercase tracking-widest leading-none">{e.isReadOnly ? 'Synced Node' : 'Primary Shift'}</span>
                               </div>
                            </div>
                          ))}
                       </div>
-                      <button onClick={() => openModal('create', ds)} className="m-2 py-2 bg-slate-50 rounded text-[9px] text-slate-400 hover:text-blue-600 transition font-black uppercase tracking-widest border border-dashed border-slate-200 shadow-inner italic">Innietta Turno</button>
+                      <button onClick={() => openModal('create', ds)} className="m-2 py-2 bg-slate-50 rounded text-[9px] text-slate-400 hover:text-blue-600 transition font-black uppercase tracking-widest border border-dashed border-slate-200 shadow-inner italic">Inserisci Turno</button>
                    </div>
                  );
                })}
@@ -411,30 +496,29 @@ export default function App() {
 
            {view === 'day' && (
              <div className="max-w-4xl mx-auto h-full flex flex-col py-8 px-4">
-                <div className="bg-white rounded-xl p-12 border border-slate-100 shadow-2xl flex-1 flex flex-col text-left">
+                <div className="bg-white rounded-xl p-12 border border-slate-100 shadow-2xl flex-1 flex flex-col text-left overflow-hidden">
                    <div className="mb-10 pb-10 border-b border-slate-100 text-left flex justify-between items-end">
                       <div className="text-left">
                          <h2 className="text-5xl font-black text-slate-950 uppercase tracking-tighter leading-none mb-3 italic text-left">{currentDate.toLocaleString('it-IT', { weekday: 'long' })}</h2>
-                         <p className="text-blue-600 font-bold uppercase tracking-[0.6em] text-[10px] text-left leading-none">{currentDate.getDate()} {currentDate.toLocaleString('it-IT', { month: 'long' })} {currentDate.getFullYear()}</p>
+                         <p className="text-blue-600 font-bold uppercase tracking-[0.6em] text-[10px] text-left leading-none italic">{currentDate.getDate()} {currentDate.toLocaleString('it-IT', { month: 'long' })} {currentDate.getFullYear()}</p>
                       </div>
                       <div className="text-slate-200 font-black text-6xl tracking-tighter select-none opacity-20 italic uppercase leading-none">{currentDate.getDate()}</div>
                    </div>
                    
                    <div className="flex-1 space-y-8 overflow-y-auto no-scrollbar pr-4">
-                      {/* Sezione TURNI PRIMARY */}
-                      <div className="space-y-4">
-                        <div className="text-[9px] font-black uppercase tracking-[0.4em] text-slate-300 italic mb-2">Primary Work Shifts</div>
+                      <div className="space-y-4 text-left">
+                        <div className="text-[9px] font-black uppercase tracking-[0.4em] text-slate-300 italic mb-2 text-left">Primary Work Shifts</div>
                         {Utils.sortEvents(allEvents.filter(e => e.date === Utils.fmtDate(currentDate) && !e.isReadOnly)).map(e => (
                            <div key={e.id} onClick={() => openModal('edit', e.date, e)} className={`${e.color} p-8 rounded-xl border border-black/5 flex items-center gap-10 cursor-pointer transition-all hover:scale-[1.02] shadow-xl group border-l-[12px]`}>
                               <div className="w-32 shrink-0 flex flex-col border-r border-white/20 pr-8 text-left">
                                  <span className="text-xl font-black leading-none text-left">{e.startTime} - {e.endTime}</span>
-                                 <span className="text-[9px] font-black opacity-60 uppercase tracking-[0.2em] mt-2 text-left leading-none italic">COMMAND SHIFT</span>
+                                 <span className="text-[9px] font-black opacity-60 uppercase tracking-[0.2em] mt-2 text-left leading-none italic text-white/50">COMMAND SHIFT</span>
                               </div>
                               <div className="flex-1 text-left">
                                  <div className="text-3xl font-black uppercase tracking-tight leading-none mb-1 italic transition text-left">{e.title}</div>
                                  <div className="flex items-center gap-2 opacity-60 text-left">
                                     <div className={`w-2 h-2 rounded-full ${e.dot}`}></div>
-                                    <div className="text-[10px] font-black uppercase tracking-widest text-left leading-none">Manually Calibrated</div>
+                                    <div className="text-[10px] font-black uppercase tracking-widest text-left leading-none text-white/70 italic">Manually Calibrated</div>
                                  </div>
                               </div>
                               <div onClick={(ev) => { ev.stopPropagation(); setEvents(events.filter(ev => ev.id !== e.id)); }} className="text-white/30 hover:text-white transition p-3 bg-black/10 rounded-lg"><Icons.Trash /></div>
@@ -442,17 +526,16 @@ export default function App() {
                         ))}
                       </div>
 
-                      {/* Sezione NODES AUXILIARY */}
-                      <div className="space-y-4">
-                        <div className="text-[9px] font-black uppercase tracking-[0.4em] text-slate-300 italic mb-2">Auxiliary Data Nodes</div>
+                      <div className="space-y-4 text-left">
+                        <div className="text-[9px] font-black uppercase tracking-[0.4em] text-slate-300 italic mb-2 text-left">Auxiliary Data Nodes</div>
                         {Utils.sortEvents(allEvents.filter(e => e.date === Utils.fmtDate(currentDate) && e.isReadOnly)).map(e => (
                            <div key={e.id} className={`${e.color} p-5 rounded-lg border border-black/5 flex items-center gap-8 opacity-70 hover:opacity-100 transition shadow-md`}>
                               <div className="w-24 shrink-0 flex flex-col border-r border-black/5 pr-6 text-left opacity-50">
-                                 <span className="text-sm font-black text-slate-900 leading-none text-left">{e.startTime} - {e.endTime}</span>
+                                 <span className="text-sm font-black text-slate-900 leading-none text-left italic">{e.startTime} - {e.endTime}</span>
                               </div>
                               <div className="flex-1 text-left">
                                  <div className="text-lg font-black uppercase tracking-tight text-slate-950 leading-none mb-1 italic text-left">{e.title}</div>
-                                 <div className="text-[8px] font-bold uppercase tracking-widest text-slate-400 text-left leading-none">SYNCED NODE</div>
+                                 <div className="text-[8px] font-bold uppercase tracking-widest text-slate-400 text-left leading-none italic">SYNCED NODE</div>
                               </div>
                            </div>
                         ))}
@@ -470,41 +553,61 @@ export default function App() {
         </div>
       </main>
 
-      {/* MODALE VAULT */}
+      {/* VAULT MODAL - DIAGNOSTIC & LOCAL BACKUP */}
       {modalMode === 'sync' && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[100] flex items-center justify-center p-6 text-center text-slate-900 animate-in fade-in duration-200">
-          <div className="bg-white rounded-xl p-10 w-full max-w-sm shadow-2xl">
-             <div className="w-16 h-16 rounded-xl flex items-center justify-center mx-auto mb-6 bg-blue-50 text-blue-600 shadow-sm"><Icons.Cloud /></div>
+          <div className="bg-white rounded-xl p-10 w-full max-w-sm shadow-2xl overflow-hidden">
+             <div className={`w-16 h-16 rounded-xl flex items-center justify-center mx-auto mb-6 shadow-sm ${authStatus === 'offline' ? 'bg-amber-50 text-amber-500' : 'bg-blue-50 text-blue-600'}`}><Icons.Cloud /></div>
              <h3 className="text-2xl font-black uppercase mb-8 tracking-tight italic text-slate-950 text-center leading-none">Data <span className="text-blue-600">Priority Vault</span></h3>
              
              <div className="mb-10 p-6 bg-slate-50 border border-slate-100 rounded-lg text-left overflow-hidden shadow-inner">
                 <div className="flex items-center gap-2 mb-3 border-b border-slate-200 pb-2">
                    <Icons.Terminal />
-                   <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Diagnostic Terminal</span>
+                   <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest italic">Diagnostic Terminal</span>
                 </div>
                 <div className="space-y-1">
                    {Object.entries(debugLog).map(([k, v]) => (
                      <div key={k} className="flex justify-between items-center text-[7px] font-black uppercase">
                         <span className="text-slate-500">{k}:</span>
-                        <span className={v === 'FOUND' ? 'text-emerald-500' : 'text-red-500'}>{v}</span>
+                        <span className={v === 'FOUND' ? 'text-emerald-500' : 'text-red-500 font-bold'}>{v}</span>
                      </div>
                    ))}
                 </div>
+                {authStatus !== 'connected' && (
+                  <div className="mt-4 p-3 bg-amber-100/50 rounded-md text-amber-600 text-[8px] font-black uppercase tracking-tighter leading-tight italic">
+                    Note: Cloud unreachable. Use JSON protocol for backup.
+                  </div>
+                )}
              </div>
 
-             <div className="grid grid-cols-2 gap-3 mb-8">
+             <div className="grid grid-cols-2 gap-3 mb-6">
                 <button onClick={exportBackup} className="bg-white p-4 rounded-lg border border-slate-200 flex flex-col items-center gap-3 hover:bg-slate-950 hover:text-white transition-all shadow-sm">
                    <Icons.Upload />
-                   <span className="text-[8px] font-black uppercase tracking-widest">Esporta</span>
+                   <span className="text-[8px] font-black uppercase tracking-widest text-center italic leading-none">Export JSON</span>
                 </button>
                 <button onClick={() => fileInputRef.current?.click()} className="bg-white p-4 rounded-lg border border-slate-200 flex flex-col items-center gap-3 hover:bg-blue-600 hover:text-white transition-all shadow-sm">
                    <Icons.Download />
-                   <span className="text-[8px] font-black uppercase tracking-widest">Importa</span>
+                   <span className="text-[8px] font-black uppercase tracking-widest text-center italic leading-none">Import JSON</span>
                 </button>
                 <input type="file" ref={fileInputRef} onChange={importBackup} accept=".json" className="hidden" />
              </div>
 
-             <button onClick={() => setModalMode(null)} className="w-full text-[9px] font-black uppercase text-slate-400 hover:text-slate-900 transition tracking-[0.5em] text-center font-bold italic">Esci</button>
+             {authStatus === 'connected' && (
+               <div className="grid grid-cols-2 gap-3 mb-8">
+                  <button onClick={pushToCloud} className="bg-blue-600 text-white p-4 rounded-lg flex flex-col items-center gap-3 hover:bg-blue-700 transition-all shadow-sm">
+                     <Icons.Cloud />
+                     <span className="text-[8px] font-black uppercase tracking-widest text-center italic leading-none">Push Cloud</span>
+                  </button>
+                  <button onClick={pullFromCloud} className="bg-slate-950 text-white p-4 rounded-lg flex flex-col items-center gap-3 hover:bg-black transition-all shadow-sm">
+                     <Icons.Refresh />
+                     <span className="text-[8px] font-black uppercase tracking-widest text-center italic leading-none">Pull Cloud</span>
+                  </button>
+               </div>
+             )}
+
+             {syncStatus && <div className={`mb-4 text-[9px] font-black uppercase tracking-widest italic ${syncStatus.type === 'error' ? 'text-red-500' : 'text-emerald-500 animate-pulse'}`}>{syncStatus.msg}</div>}
+
+             <button onClick={() => setModalMode(null)} className="w-full text-[9px] font-black uppercase text-slate-400 hover:text-slate-900 transition tracking-[0.5em] text-center font-bold italic">Chiudi Vault</button>
           </div>
         </div>
       )}
@@ -584,15 +687,15 @@ export default function App() {
                 </div>
 
                 <div className="flex gap-3">
-                   <button onClick={() => setModalMode(null)} className="flex-1 text-[9px] font-black uppercase text-slate-400 hover:text-slate-900 transition tracking-[0.3em] font-bold py-4 italic">Annulla</button>
-                   <button onClick={handleSave} className="flex-[2] bg-slate-950 text-white py-4 rounded-xl font-black uppercase text-[10px] hover:bg-black transition-all shadow-xl tracking-widest italic">Salva Turno</button>
+                   <button onClick={() => setModalMode(null)} className="flex-1 text-[9px] font-black uppercase text-slate-400 hover:text-slate-900 transition tracking-[0.3em] font-bold py-4 italic text-center leading-none">Annulla</button>
+                   <button onClick={handleSave} className="flex-[2] bg-slate-950 text-white py-4 rounded-xl font-black uppercase text-[10px] hover:bg-black transition-all shadow-xl tracking-widest italic leading-none">Salva Turno</button>
                 </div>
              </div>
           </div>
         </div>
       )}
 
-      {/* SETTINGS iCAL */}
+      {/* SETTINGS MODAL */}
       {modalMode === 'settings' && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-lg z-[100] flex items-center justify-center p-8 text-center text-slate-900 animate-in fade-in duration-200">
           <div className="bg-white rounded-xl p-12 w-full max-w-sm shadow-2xl border border-white/20">
@@ -608,20 +711,20 @@ export default function App() {
                </div>
                
                <div className="pt-2">
-                  <label className="text-[8px] font-black uppercase text-slate-400 ml-1 tracking-[0.2em] block mb-3 text-center italic">Personalizzazione Cromatica</label>
+                  <label className="text-[8px] font-black uppercase text-slate-400 ml-1 tracking-[0.2em] block mb-3 text-center italic">Colore Nodo</label>
                   <div className="flex justify-center gap-2">
                      {PALETTE.map(p => (
                        <button 
                          key={p.id} 
                          onClick={() => setNewIcalColor(p.id)}
-                         className={`w-8 h-8 rounded-lg transition-all ${p.dot === 'bg-white' ? (PALETTE.find(x => x.id === p.id)?.bg || 'bg-blue-600') : p.dot} ${newIcalColor === p.id ? 'ring-4 ring-offset-4 ring-slate-950 scale-110 shadow-lg' : 'hover:scale-110 opacity-60'}`}
+                         className={`w-8 h-8 rounded-lg transition-all ${p.bg} ${newIcalColor === p.id ? 'ring-4 ring-offset-4 ring-slate-950 scale-110 shadow-lg' : 'hover:scale-110 opacity-60'}`}
                          title={p.id}
                        />
                      ))}
                   </div>
                </div>
 
-               <button onClick={() => { if (!newIcalUrl) return; setIcalSources([...(icalSources || []), { name: newIcalName, url: newIcalUrl, color: newIcalColor }]); setNewIcalName(''); setNewIcalUrl(''); setModalMode(null); }} className="w-full bg-slate-950 text-white py-6 rounded-lg font-black uppercase text-[10px] hover:bg-black transition-all shadow-xl tracking-widest mt-6 italic shadow-blue-900/10">Inietta Node</button>
+               <button onClick={() => { if (!newIcalUrl) return; setIcalSources([...(icalSources || []), { name: newIcalName, url: newIcalUrl, color: newIcalColor }]); setNewIcalName(''); setNewIcalUrl(''); setModalMode(null); }} className="w-full bg-slate-950 text-white py-6 rounded-lg font-black uppercase text-[10px] hover:bg-black transition-all shadow-xl tracking-widest mt-6 italic shadow-blue-900/10 text-center leading-none">Inietta Node</button>
                <button onClick={() => setModalMode(null)} className="w-full text-[9px] font-black uppercase text-slate-400 tracking-[0.5em] pt-6 hover:text-slate-950 transition text-center font-bold italic">Annulla</button>
             </div>
           </div>
