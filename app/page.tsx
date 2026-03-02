@@ -18,12 +18,12 @@ import {
 } from 'firebase/firestore';
 
 /**
- * CALENDARIO TITANIO V68 - OBSIDIAN CHRONO-RANGE
+ * CALENDARIO TITANIO V69 - OBSIDIAN RAPID-SHIFT
  * MENTORE DOCET: 
- * 1. DUAL-TIME DISPLAY: Orario Inizio e Fine sempre visibili in ogni vista.
- * 2. FULL EDITING: Possibilità di modificare manualmente i range orari dei turni.
- * 3. NO JUNK UI: Rimosso tasto Video Call, pulizia totale dei modali.
- * 4. CLOUD DIAGNOSTIC: Gestione esplicita del fallimento "CONFIG: MISSING".
+ * 1. ONE-TAP PRESETS: Pulsanti rapidi per Mattina, Pomeriggio e Riposo.
+ * 2. CHRONO-RANGE EDITABLE: Gli orari si impostano col preset ma restano modificabili.
+ * 3. MINIMAL INPUT: Eliminata la necessità di scrivere manualmente il nome del turno.
+ * 4. OBSIDIAN DESIGN: Pulizia estrema per la massima concentrazione.
  */
 
 const Icons = {
@@ -110,12 +110,12 @@ export default function App() {
   const [newIcalUrl, setNewIcalUrl] = useState('');
   const [newIcalColor, setNewIcalColor] = useState('blue');
 
-  // 1. BOOTSTRAP & CLOUD DIAGNOSTIC
+  // 1. BOOTSTRAP
   useEffect(() => {
     isMounted.current = true;
     try {
-      const sEvs = localStorage.getItem('titanio_v68_events');
-      const sIcal = localStorage.getItem('titanio_v68_ical');
+      const sEvs = localStorage.getItem('titanio_v69_events');
+      const sIcal = localStorage.getItem('titanio_v69_ical');
       if (sEvs) setEvents(JSON.parse(sEvs));
       if (sIcal) setIcalSources(JSON.parse(sIcal));
     } catch (e) {}
@@ -128,8 +128,7 @@ export default function App() {
       setDebugLog({
         config: cfg ? 'FOUND' : 'MISSING',
         appId: aid ? 'FOUND' : 'DEFAULT',
-        token: tok ? 'FOUND' : 'MISSING',
-        window: typeof window !== 'undefined' ? 'READY' : 'WAIT'
+        token: tok ? 'FOUND' : 'MISSING'
       });
 
       if (!cfg) { setAuthStatus('offline'); setInitializing(false); return; }
@@ -139,7 +138,7 @@ export default function App() {
         const app = getApps().length === 0 ? initializeApp(config) : getApps()[0];
         const auth = getAuth(app);
         const firestore = getFirestore(app);
-        setAppId(aid || 'titanio-v68');
+        setAppId(aid || 'titanio-v69');
         setDb(firestore);
         onAuthStateChanged(auth, (u) => {
           if (isMounted.current) { setUser(u); if (u) setAuthStatus('connected'); setInitializing(false); }
@@ -155,12 +154,12 @@ export default function App() {
   // 2. AUTO-SAVE
   useEffect(() => {
     if (!initializing) {
-      localStorage.setItem('titanio_v68_events', JSON.stringify(events || []));
-      localStorage.setItem('titanio_v68_ical', JSON.stringify(icalSources || []));
+      localStorage.setItem('titanio_v69_events', JSON.stringify(events || []));
+      localStorage.setItem('titanio_v69_ical', JSON.stringify(icalSources || []));
     }
   }, [events, icalSources, initializing]);
 
-  // 3. iCAL ENGINE (EXTRACT END TIME)
+  // 3. iCAL ENGINE
   const fetchIcal = async () => {
     const active = (icalSources || []).filter(s => s?.url?.startsWith('http'));
     if (active.length === 0) { setIcalEvents([]); return; }
@@ -176,15 +175,10 @@ export default function App() {
           const sColor = PALETTE.find(p => p.id === s.color) || PALETTE[0];
           blocks.forEach(block => {
             const summary = (block.match(/SUMMARY:(.*)/)?.[1] || "iCal Event").trim();
-            
-            // Start
             const stMatch = block.match(/DTSTART[;:][^:]*:?(\d{8}T\d{4})/);
             const startTime = stMatch ? `${stMatch[1].substr(9,2)}:${stMatch[1].substr(11,2)}` : "G";
-            
-            // End
             const enMatch = block.match(/DTEND[;:][^:]*:?(\d{8}T\d{4})/);
             const endTime = enMatch ? `${enMatch[1].substr(9,2)}:${enMatch[1].substr(11,2)}` : (startTime === "G" ? "G" : "??:??");
-
             const dateMatch = block.match(/DTSTART[;:][^:]*:?(\d{8})/);
             if (dateMatch) {
               const dStr = dateMatch[1];
@@ -223,9 +217,10 @@ export default function App() {
       setFormColor(matchedColor);
     } else {
       setEditingEvent(null);
-      setFormTitle('');
+      setFormTitle('Mattina');
       setFormStart('09:00');
       setFormEnd('14:00');
+      setFormColor(PALETTE[0]);
     }
   };
 
@@ -238,7 +233,6 @@ export default function App() {
       color: `${formColor.bg} ${formColor.text} ${formColor.border}`,
       dot: formColor.dot
     };
-
     if (modalMode === 'edit' && editingEvent) {
       setEvents(events.map(e => e.id === editingEvent.id ? { ...e, ...data } : e));
     } else {
@@ -254,7 +248,7 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `titanio_v68_backup.json`;
+    a.download = `titanio_v69_backup.json`;
     a.click();
     setSyncStatus({ type: 'success', msg: 'File Generato' });
     setTimeout(() => setSyncStatus(null), 2000);
@@ -280,20 +274,20 @@ export default function App() {
 
   if (initializing && events.length === 0) return (
     <div className="h-screen flex flex-col items-center justify-center bg-slate-950 text-white font-black">
-      <div className="text-[10px] tracking-[0.5em] animate-pulse italic uppercase text-blue-500 mb-2">Titanio Obsidian V68</div>
-      <div className="text-[7px] opacity-40 uppercase tracking-widest italic">Precision Kernel Booting...</div>
+      <div className="text-[10px] tracking-[0.5em] animate-pulse italic uppercase text-blue-500 mb-2">Titanio Obsidian V69</div>
+      <div className="text-[7px] opacity-40 uppercase tracking-widest italic">Rapid-Shift System Booting...</div>
     </div>
   );
 
   return (
     <div className="flex h-screen w-full bg-white font-sans text-slate-900 overflow-hidden relative selection:bg-blue-100 text-left">
-      <div className="absolute top-2 left-2 z-[100] bg-black text-white text-[7px] px-2 py-0.5 rounded-sm font-black opacity-20 uppercase tracking-widest pointer-events-none italic">PRECISION V68</div>
+      <div className="absolute top-2 left-2 z-[100] bg-black text-white text-[7px] px-2 py-0.5 rounded-sm font-black opacity-20 uppercase tracking-widest pointer-events-none italic">RAPID-SHIFT V69</div>
 
       {/* SIDEBAR */}
       <aside className="w-80 shrink-0 bg-slate-950 text-white p-6 flex flex-col hidden lg:flex shadow-2xl z-20 border-r border-white/5">
         <div className="flex items-center gap-3 mb-10">
           <Icons.Logo />
-          <h2 className="text-lg font-black uppercase tracking-tight italic leading-none text-left">Titanio<br/><span className="text-blue-500 text-[10px] text-left">Obsidian Suite</span></h2>
+          <h2 className="text-lg font-black uppercase tracking-tight italic leading-none text-left">Titanio<br/><span className="text-blue-500 text-[10px] text-left">Rapid-Shift Suite</span></h2>
         </div>
 
         <div className="bg-white/[0.02] rounded-lg p-5 mb-8 border border-white/5 text-left relative overflow-hidden shadow-inner">
@@ -301,9 +295,9 @@ export default function App() {
               <div className="text-left">
                  <div className={`text-[8px] font-black uppercase tracking-widest mb-1 flex items-center gap-2 ${authStatus === 'connected' ? 'text-emerald-500' : 'text-slate-500'}`}>
                     <div className={`w-1.5 h-1.5 rounded-full ${authStatus === 'connected' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-slate-600'}`}></div>
-                    {authStatus === 'connected' ? 'Link Established' : 'Standalone Mode'}
+                    {authStatus === 'connected' ? 'Cloud Linked' : 'Standalone Mode'}
                  </div>
-                 <div className="text-[10px] font-bold text-slate-500 italic uppercase tracking-tighter">Terminal: Ghedi-Prec-01</div>
+                 <div className="text-[10px] font-bold text-slate-500 italic uppercase tracking-tighter">Terminal: Ghedi-Rapid-01</div>
               </div>
               <Icons.Sun />
            </div>
@@ -463,47 +457,38 @@ export default function App() {
         </div>
       </main>
 
-      {/* CLOUD VAULT - DIAGNOSTIC MODE */}
+      {/* MODALE DATA VAULT */}
       {modalMode === 'sync' && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[100] flex items-center justify-center p-6 text-center text-slate-900 animate-in fade-in duration-200">
           <div className="bg-white rounded-xl p-10 w-full max-w-sm shadow-2xl">
              <div className="w-16 h-16 rounded-xl flex items-center justify-center mx-auto mb-6 bg-blue-50 text-blue-600 shadow-sm"><Icons.Cloud /></div>
              <h3 className="text-2xl font-black uppercase mb-8 tracking-tight italic text-slate-950 text-center leading-none">Data <span className="text-blue-600">Precision Vault</span></h3>
              
-             {/* Diagnostic Terminal - Analisi della foto inviata */}
-             <div className="mb-8 p-4 rounded-xl bg-slate-900 text-left border border-white/10 shadow-inner overflow-hidden">
-                <div className="flex items-center gap-2 mb-3 border-b border-white/10 pb-2">
+             <div className="mb-10 p-6 bg-slate-50 border border-slate-100 rounded-lg text-left overflow-hidden">
+                <div className="flex items-center gap-2 mb-3 border-b border-slate-200 pb-2">
                    <Icons.Terminal />
-                   <span className="text-[8px] font-black text-blue-400 uppercase tracking-widest">Diagnostic Terminal</span>
+                   <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Diagnostic Log</span>
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                    {Object.entries(debugLog).map(([k, v]) => (
-                     <div key={k} className="flex justify-between items-center">
-                        <span className="text-[7px] font-black text-slate-500 uppercase">{k}:</span>
-                        <span className={`text-[7px] font-black uppercase ${v === 'FOUND' || v === 'READY' ? 'text-emerald-400' : 'text-red-500 animate-pulse'}`}>{v}</span>
+                     <div key={k} className="flex justify-between items-center text-[7px] font-black uppercase">
+                        <span className="text-slate-500">{k}:</span>
+                        <span className={v === 'FOUND' ? 'text-emerald-500' : 'text-red-500'}>{v}</span>
                      </div>
                    ))}
                 </div>
-                {authStatus === 'offline' && (
-                  <div className="mt-3 text-[7px] text-red-400 font-bold uppercase italic leading-tight">
-                    Attenzione: Chiavi mancanti. Usa il backup manuale qui sotto.
-                  </div>
-                )}
              </div>
 
-             <div className="mb-8 p-6 bg-slate-50 border border-slate-100 rounded-lg">
-                <div className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-400 mb-4 text-center italic">Local Backup (USB)</div>
-                <div className="grid grid-cols-2 gap-3">
-                   <button onClick={exportBackup} className="bg-white p-4 rounded-lg border border-slate-200 flex flex-col items-center gap-3 hover:bg-slate-950 hover:text-white transition-all shadow-sm">
-                      <Icons.Upload />
-                      <span className="text-[8px] font-black uppercase tracking-widest">Esporta</span>
-                   </button>
-                   <button onClick={() => fileInputRef.current?.click()} className="bg-white p-4 rounded-lg border border-slate-200 flex flex-col items-center gap-3 hover:bg-blue-600 hover:text-white transition-all shadow-sm">
-                      <Icons.Download />
-                      <span className="text-[8px] font-black uppercase tracking-widest">Importa</span>
-                   </button>
-                   <input type="file" ref={fileInputRef} onChange={importBackup} accept=".json" className="hidden" />
-                </div>
+             <div className="grid grid-cols-2 gap-3 mb-8">
+                <button onClick={exportBackup} className="bg-white p-4 rounded-lg border border-slate-200 flex flex-col items-center gap-3 hover:bg-slate-950 hover:text-white transition-all shadow-sm">
+                   <Icons.Upload />
+                   <span className="text-[8px] font-black uppercase tracking-widest">Esporta</span>
+                </button>
+                <button onClick={() => fileInputRef.current?.click()} className="bg-white p-4 rounded-lg border border-slate-200 flex flex-col items-center gap-3 hover:bg-blue-600 hover:text-white transition-all shadow-sm">
+                   <Icons.Download />
+                   <span className="text-[8px] font-black uppercase tracking-widest">Importa</span>
+                </button>
+                <input type="file" ref={fileInputRef} onChange={importBackup} accept=".json" className="hidden" />
              </div>
 
              <button onClick={() => setModalMode(null)} className="w-full text-[9px] font-black uppercase text-slate-400 hover:text-slate-950 transition tracking-[0.5em] text-center font-bold">Esci</button>
@@ -511,7 +496,7 @@ export default function App() {
         </div>
       )}
 
-      {/* CRUD MODAL - NO JUNK */}
+      {/* CRUD MODAL - RAPID SHIFT OVERRIDE */}
       {(modalMode === 'create' || modalMode === 'edit') && (
         <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md z-[100] flex items-center justify-center p-6 animate-in fade-in duration-200 text-slate-900">
           <div className="bg-white rounded-xl p-10 w-full max-w-sm shadow-2xl">
@@ -523,37 +508,74 @@ export default function App() {
                 <button onClick={() => setModalMode(null)} className="p-2 hover:bg-slate-100 rounded text-slate-400 transition"><Icons.X /></button>
              </div>
              
-             <div className="space-y-6">
-                <div>
-                   <label className="text-[8px] font-black uppercase text-slate-400 ml-1 tracking-[0.2em]">Titolo Turno</label>
-                   <input value={formTitle} onChange={e => setFormTitle(e.target.value)} placeholder="ES: MATTINO, REPERIBILITÀ..." className="w-full bg-slate-50 p-5 rounded-lg font-black text-[10px] outline-none border border-slate-100 focus:border-blue-500 text-center uppercase tracking-widest text-slate-900 shadow-inner mt-1" />
+             <div className="space-y-8">
+                {/* PRESET BUTTONS - THE CORE OF V69 */}
+                <div className="space-y-3">
+                   <label className="text-[8px] font-black uppercase text-slate-400 ml-1 tracking-[0.2em] block text-center">Seleziona Turno Rapido</label>
+                   <div className="grid grid-cols-1 gap-2">
+                      <button 
+                         onClick={() => { setFormTitle('Mattina'); setFormStart('09:00'); setFormEnd('14:00'); setFormColor(PALETTE[0]); }}
+                         className={`p-4 rounded-lg border flex items-center justify-between transition-all group ${formTitle === 'Mattina' ? 'bg-blue-50 border-blue-500' : 'bg-slate-50 border-slate-100 hover:border-blue-300'}`}
+                      >
+                         <div className="flex items-center gap-3 text-left">
+                            <span className="text-xl">🌅</span>
+                            <div className="flex flex-col leading-none">
+                               <span className="text-[10px] font-black uppercase italic text-slate-900">Mattina</span>
+                               <span className="text-[8px] font-bold text-slate-400 mt-1">09:00 - 14:00</span>
+                            </div>
+                         </div>
+                         <div className={`w-3 h-3 rounded-full bg-blue-500 ${formTitle === 'Mattina' ? 'opacity-100' : 'opacity-20 group-hover:opacity-100'}`}></div>
+                      </button>
+
+                      <button 
+                         onClick={() => { setFormTitle('Pomeriggio'); setFormStart('14:30'); setFormEnd('19:30'); setFormColor(PALETTE[2]); }}
+                         className={`p-4 rounded-lg border flex items-center justify-between transition-all group ${formTitle === 'Pomeriggio' ? 'bg-amber-50 border-amber-500' : 'bg-slate-50 border-slate-100 hover:border-amber-300'}`}
+                      >
+                         <div className="flex items-center gap-3 text-left">
+                            <span className="text-xl">☀️</span>
+                            <div className="flex flex-col leading-none">
+                               <span className="text-[10px] font-black uppercase italic text-slate-900">Pomeriggio</span>
+                               <span className="text-[8px] font-bold text-slate-400 mt-1">14:30 - 19:30</span>
+                            </div>
+                         </div>
+                         <div className={`w-3 h-3 rounded-full bg-amber-500 ${formTitle === 'Pomeriggio' ? 'opacity-100' : 'opacity-20 group-hover:opacity-100'}`}></div>
+                      </button>
+
+                      <button 
+                         onClick={() => { setFormTitle('Riposo'); setFormStart('00:00'); setFormEnd('23:59'); setFormColor(PALETTE[4]); }}
+                         className={`p-4 rounded-lg border flex items-center justify-between transition-all group ${formTitle === 'Riposo' ? 'bg-emerald-50 border-emerald-500' : 'bg-slate-50 border-slate-100 hover:border-emerald-300'}`}
+                      >
+                         <div className="flex items-center gap-3 text-left">
+                            <span className="text-xl">🌴</span>
+                            <div className="flex flex-col leading-none">
+                               <span className="text-[10px] font-black uppercase italic text-slate-900">Riposo</span>
+                               <span className="text-[8px] font-bold text-slate-400 mt-1">Giorno Libero</span>
+                            </div>
+                         </div>
+                         <div className={`w-3 h-3 rounded-full bg-emerald-500 ${formTitle === 'Riposo' ? 'opacity-100' : 'opacity-20 group-hover:opacity-100'}`}></div>
+                      </button>
+                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                   <div>
-                      <label className="text-[8px] font-black uppercase text-slate-400 ml-1 tracking-[0.2em]">Inizio</label>
-                      <input type="time" value={formStart} onChange={e => setFormStart(e.target.value)} className="w-full bg-slate-50 p-4 rounded-lg font-black text-[11px] outline-none border border-slate-100 focus:border-blue-500 text-center text-slate-900 shadow-inner mt-1" />
-                   </div>
-                   <div>
-                      <label className="text-[8px] font-black uppercase text-slate-400 ml-1 tracking-[0.2em]">Fine</label>
-                      <input type="time" value={formEnd} onChange={e => setFormEnd(e.target.value)} className="w-full bg-slate-50 p-4 rounded-lg font-black text-[11px] outline-none border border-slate-100 focus:border-blue-500 text-center text-slate-900 shadow-inner mt-1" />
-                   </div>
-                </div>
-
-                <div>
-                   <label className="text-[8px] font-black uppercase text-slate-400 ml-1 tracking-[0.2em] block mb-2 text-center">Protocollo Colore</label>
-                   <div className="flex justify-center gap-2 py-2">
-                      {PALETTE.map(p => (
-                        <button 
-                          key={p.id} 
-                          onClick={() => setFormColor(p)}
-                          className={`w-8 h-8 rounded-lg transition-all ${p.dot} ${formColor.id === p.id ? 'ring-4 ring-offset-4 ring-slate-900 scale-110 shadow-lg' : 'hover:scale-110'}`}
-                        />
-                      ))}
+                {/* EDITABLE TIME OVERRIDE */}
+                <div className="bg-slate-50 p-6 rounded-xl border border-slate-100">
+                   <label className="text-[8px] font-black uppercase text-slate-400 ml-1 tracking-[0.2em] block mb-4 text-center italic">Personalizza Orario (Se necessario)</label>
+                   <div className="grid grid-cols-2 gap-4">
+                      <div>
+                         <label className="text-[7px] font-black uppercase text-slate-400 ml-1">Inizio</label>
+                         <input type="time" value={formStart} onChange={e => setFormStart(e.target.value)} className="w-full bg-white p-3 rounded-lg font-black text-[11px] border border-slate-200 focus:border-blue-500 outline-none text-center shadow-sm" />
+                      </div>
+                      <div>
+                         <label className="text-[7px] font-black uppercase text-slate-400 ml-1">Fine</label>
+                         <input type="time" value={formEnd} onChange={e => setFormEnd(e.target.value)} className="w-full bg-white p-3 rounded-lg font-black text-[11px] border border-slate-200 focus:border-blue-500 outline-none text-center shadow-sm" />
+                      </div>
                    </div>
                 </div>
 
-                <button onClick={handleSave} className="w-full bg-slate-950 text-white py-6 rounded-lg font-black uppercase text-[10px] hover:bg-black transition-all shadow-xl tracking-widest mt-6 italic shadow-blue-900/10">Salva Entry</button>
+                <div className="flex gap-3">
+                   <button onClick={() => setModalMode(null)} className="flex-1 text-[9px] font-black uppercase text-slate-400 hover:text-slate-900 transition tracking-[0.3em] font-bold py-4">Esci</button>
+                   <button onClick={handleSave} className="flex-[2] bg-slate-950 text-white py-4 rounded-xl font-black uppercase text-[10px] hover:bg-black transition-all shadow-xl tracking-widest italic">Salva Turno</button>
+                </div>
              </div>
           </div>
         </div>
@@ -565,27 +587,10 @@ export default function App() {
           <div className="bg-white rounded-xl p-12 w-full max-w-sm shadow-2xl border border-white/20">
             <h3 className="text-2xl font-black uppercase mb-10 tracking-tight italic text-center text-slate-950 leading-none">Add <span className="text-blue-600">Data Node</span></h3>
             <div className="space-y-5">
-               <div className="text-left">
-                  <label className="text-[8px] font-black uppercase text-slate-400 ml-1 tracking-[0.2em]">Nome Calendario</label>
-                  <input value={newIcalName} onChange={e => setNewIcalName(e.target.value)} placeholder="ES: LAVORO" className="w-full bg-slate-50 p-5 rounded-lg font-black text-[10px] outline-none border border-slate-100 focus:border-blue-500 text-center uppercase tracking-widest text-slate-900 shadow-inner mt-1" />
-               </div>
-               <div className="text-left">
-                  <label className="text-[8px] font-black uppercase text-slate-400 ml-1 tracking-[0.2em]">URL iCal (ICS)</label>
-                  <input value={newIcalUrl} onChange={e => setNewIcalUrl(e.target.value)} placeholder="HTTPS://..." className="w-full bg-slate-50 p-5 rounded-lg font-black text-[10px] outline-none border border-slate-100 focus:border-blue-500 text-center text-slate-900 shadow-inner mt-1" />
-               </div>
-               
-               <div className="flex justify-center gap-2 py-2">
-                  {PALETTE.map(p => (
-                    <button 
-                      key={p.id} 
-                      onClick={() => setNewIcalColor(p.id)}
-                      className={`w-7 h-7 rounded-lg transition-all ${p.dot} ${newIcalColor === p.id ? 'ring-4 ring-offset-4 ring-slate-900 scale-110 shadow-lg' : 'hover:scale-110'}`}
-                    />
-                  ))}
-               </div>
-
+               <input value={newIcalName} onChange={e => setNewIcalName(e.target.value)} placeholder="NOME CALENDARIO" className="w-full bg-slate-50 p-5 rounded-lg font-black text-[10px] outline-none border border-slate-100 focus:border-blue-500 text-center uppercase tracking-widest shadow-inner mt-1" />
+               <input value={newIcalUrl} onChange={e => setNewIcalUrl(e.target.value)} placeholder="HTTPS://... (ICS)" className="w-full bg-slate-50 p-5 rounded-lg font-black text-[10px] outline-none border border-slate-100 focus:border-blue-500 text-center shadow-inner mt-1" />
                <button onClick={() => { if (!newIcalUrl) return; setIcalSources([...(icalSources || []), { name: newIcalName, url: newIcalUrl, color: newIcalColor }]); setNewIcalName(''); setNewIcalUrl(''); setModalMode(null); }} className="w-full bg-slate-950 text-white py-6 rounded-lg font-black uppercase text-[10px] hover:bg-black transition-all shadow-xl tracking-widest mt-6 italic">Inietta Node</button>
-               <button onClick={() => { setNewIcalName(''); setNewIcalUrl(''); setModalMode(null); }} className="w-full text-[9px] font-black uppercase text-slate-400 tracking-[0.5em] pt-6 hover:text-slate-900 transition text-center font-bold italic">Annulla</button>
+               <button onClick={() => setModalMode(null)} className="w-full text-[9px] font-black uppercase text-slate-400 tracking-[0.5em] pt-6 hover:text-slate-950 transition text-center font-bold italic">Annulla</button>
             </div>
           </div>
         </div>
