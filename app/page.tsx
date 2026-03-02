@@ -18,12 +18,12 @@ import {
 } from 'firebase/firestore';
 
 /**
- * CALENDARIO TITANIO V69 - OBSIDIAN RAPID-SHIFT
+ * CALENDARIO TITANIO V70 - OBSIDIAN CHROME-NODE
  * MENTORE DOCET: 
- * 1. ONE-TAP PRESETS: Pulsanti rapidi per Mattina, Pomeriggio e Riposo.
- * 2. CHRONO-RANGE EDITABLE: Gli orari si impostano col preset ma restano modificabili.
- * 3. MINIMAL INPUT: Eliminata la necessità di scrivere manualmente il nome del turno.
- * 4. OBSIDIAN DESIGN: Pulizia estrema per la massima concentrazione.
+ * 1. NODE COLOR PICKER: Scelta del colore per ogni sorgente iCal per distinzione immediata.
+ * 2. CHRONO-RANGE PERSISTENCE: Orario Inizio-Fine visibile ovunque.
+ * 3. RAPID-SHIFT PRESETS: Mantenuti i 3 tasti rapidi per i turni manuali.
+ * 4. OBSIDIAN PRECISION: Ordinamento cronologico e pulizia visiva totale.
  */
 
 const Icons = {
@@ -114,8 +114,8 @@ export default function App() {
   useEffect(() => {
     isMounted.current = true;
     try {
-      const sEvs = localStorage.getItem('titanio_v69_events');
-      const sIcal = localStorage.getItem('titanio_v69_ical');
+      const sEvs = localStorage.getItem('titanio_v70_events');
+      const sIcal = localStorage.getItem('titanio_v70_ical');
       if (sEvs) setEvents(JSON.parse(sEvs));
       if (sIcal) setIcalSources(JSON.parse(sIcal));
     } catch (e) {}
@@ -138,7 +138,7 @@ export default function App() {
         const app = getApps().length === 0 ? initializeApp(config) : getApps()[0];
         const auth = getAuth(app);
         const firestore = getFirestore(app);
-        setAppId(aid || 'titanio-v69');
+        setAppId(aid || 'titanio-v70');
         setDb(firestore);
         onAuthStateChanged(auth, (u) => {
           if (isMounted.current) { setUser(u); if (u) setAuthStatus('connected'); setInitializing(false); }
@@ -154,12 +154,12 @@ export default function App() {
   // 2. AUTO-SAVE
   useEffect(() => {
     if (!initializing) {
-      localStorage.setItem('titanio_v69_events', JSON.stringify(events || []));
-      localStorage.setItem('titanio_v69_ical', JSON.stringify(icalSources || []));
+      localStorage.setItem('titanio_v70_events', JSON.stringify(events || []));
+      localStorage.setItem('titanio_v70_ical', JSON.stringify(icalSources || []));
     }
   }, [events, icalSources, initializing]);
 
-  // 3. iCAL ENGINE
+  // 3. iCAL ENGINE (CHROME-NODE COLOR SYNC)
   const fetchIcal = async () => {
     const active = (icalSources || []).filter(s => s?.url?.startsWith('http'));
     if (active.length === 0) { setIcalEvents([]); return; }
@@ -248,7 +248,7 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `titanio_v69_backup.json`;
+    a.download = `titanio_v70_backup.json`;
     a.click();
     setSyncStatus({ type: 'success', msg: 'File Generato' });
     setTimeout(() => setSyncStatus(null), 2000);
@@ -274,20 +274,20 @@ export default function App() {
 
   if (initializing && events.length === 0) return (
     <div className="h-screen flex flex-col items-center justify-center bg-slate-950 text-white font-black">
-      <div className="text-[10px] tracking-[0.5em] animate-pulse italic uppercase text-blue-500 mb-2">Titanio Obsidian V69</div>
-      <div className="text-[7px] opacity-40 uppercase tracking-widest italic">Rapid-Shift System Booting...</div>
+      <div className="text-[10px] tracking-[0.5em] animate-pulse italic uppercase text-blue-500 mb-2">Titanio Chrome-Node V70</div>
+      <div className="text-[7px] opacity-40 uppercase tracking-widest italic text-center">Iniezione Protocollo Obsidian...</div>
     </div>
   );
 
   return (
     <div className="flex h-screen w-full bg-white font-sans text-slate-900 overflow-hidden relative selection:bg-blue-100 text-left">
-      <div className="absolute top-2 left-2 z-[100] bg-black text-white text-[7px] px-2 py-0.5 rounded-sm font-black opacity-20 uppercase tracking-widest pointer-events-none italic">RAPID-SHIFT V69</div>
+      <div className="absolute top-2 left-2 z-[100] bg-black text-white text-[7px] px-2 py-0.5 rounded-sm font-black opacity-20 uppercase tracking-widest pointer-events-none italic">CHROME-NODE V70</div>
 
       {/* SIDEBAR */}
       <aside className="w-80 shrink-0 bg-slate-950 text-white p-6 flex flex-col hidden lg:flex shadow-2xl z-20 border-r border-white/5">
         <div className="flex items-center gap-3 mb-10">
           <Icons.Logo />
-          <h2 className="text-lg font-black uppercase tracking-tight italic leading-none text-left">Titanio<br/><span className="text-blue-500 text-[10px] text-left">Rapid-Shift Suite</span></h2>
+          <h2 className="text-lg font-black uppercase tracking-tight italic leading-none text-left">Titanio<br/><span className="text-blue-500 text-[10px] text-left">Chrome-Node Suite</span></h2>
         </div>
 
         <div className="bg-white/[0.02] rounded-lg p-5 mb-8 border border-white/5 text-left relative overflow-hidden shadow-inner">
@@ -297,7 +297,7 @@ export default function App() {
                     <div className={`w-1.5 h-1.5 rounded-full ${authStatus === 'connected' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-slate-600'}`}></div>
                     {authStatus === 'connected' ? 'Cloud Linked' : 'Standalone Mode'}
                  </div>
-                 <div className="text-[10px] font-bold text-slate-500 italic uppercase tracking-tighter">Terminal: Ghedi-Rapid-01</div>
+                 <div className="text-[10px] font-bold text-slate-500 italic uppercase tracking-tighter">Terminal: Ghedi-Chrome-01</div>
               </div>
               <Icons.Sun />
            </div>
@@ -324,6 +324,7 @@ export default function App() {
                         </div>
                         <span className="text-[7px] text-slate-600 font-bold uppercase tracking-widest mt-1 text-left">{icalStatuses[s?.url] || 'Syncing...'}</span>
                      </div>
+                     <button onClick={() => setIcalSources(icalSources.filter((_, idx) => idx !== i))} className="text-red-500 opacity-0 group-hover:opacity-100 transition p-1"><Icons.X /></button>
                   </div>
                 );
               })}
@@ -340,9 +341,9 @@ export default function App() {
                 <span className="text-[9px] font-bold text-slate-300 uppercase tracking-[0.3em] text-left">{currentDate.getFullYear()}</span>
              </div>
              <div className="flex bg-slate-50 rounded p-0.5 border border-slate-100 shadow-inner">
-                <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth()-1)))} className="p-2 hover:bg-white rounded transition text-slate-400"><Icons.Chevron /></button>
-                <button onClick={() => setCurrentDate(new Date())} className="px-4 py-1 font-black text-[9px] uppercase hover:bg-white rounded transition text-slate-700 font-bold">Oggi</button>
-                <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth()+1)))} className="p-2 hover:bg-white rounded transition text-slate-400 rotate-180"><Icons.Chevron /></button>
+                <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth()-1)))} className="p-2 hover:bg-white rounded transition text-slate-400"><Icons.ChevronLeft /></button>
+                <button onClick={() => setCurrentDate(new Date())} className="px-4 py-1 font-black text-[9px] uppercase hover:bg-white rounded transition text-slate-700 font-bold italic">Oggi</button>
+                <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth()+1)))} className="p-2 hover:bg-white rounded transition text-slate-400"><Icons.ChevronRight /></button>
              </div>
           </div>
           
@@ -426,10 +427,10 @@ export default function App() {
                 <div className="bg-white rounded-xl p-12 border border-slate-100 shadow-2xl flex-1 flex flex-col text-left">
                    <div className="mb-10 pb-10 border-b border-slate-100 text-left flex justify-between items-end">
                       <div>
-                         <h2 className="text-5xl font-black text-slate-950 uppercase tracking-tighter leading-none mb-3 italic">{currentDate.toLocaleString('it-IT', { weekday: 'long' })}</h2>
-                         <p className="text-blue-600 font-bold uppercase tracking-[0.6em] text-[10px]">{currentDate.getDate()} {currentDate.toLocaleString('it-IT', { month: 'long' })} {currentDate.getFullYear()}</p>
+                         <h2 className="text-5xl font-black text-slate-950 uppercase tracking-tighter leading-none mb-3 italic text-left">{currentDate.toLocaleString('it-IT', { weekday: 'long' })}</h2>
+                         <p className="text-blue-600 font-bold uppercase tracking-[0.6em] text-[10px] text-left">{currentDate.getDate()} {currentDate.toLocaleString('it-IT', { month: 'long' })} {currentDate.getFullYear()}</p>
                       </div>
-                      <div className="text-slate-200 font-black text-6xl tracking-tighter select-none opacity-20 italic uppercase">{currentDate.getDate()}</div>
+                      <div className="text-slate-200 font-black text-6xl tracking-tighter select-none opacity-20 italic uppercase leading-none">{currentDate.getDate()}</div>
                    </div>
                    
                    <div className="flex-1 space-y-4 overflow-y-auto no-scrollbar pr-4">
@@ -440,7 +441,7 @@ export default function App() {
                               <span className="text-[8px] font-bold opacity-30 uppercase tracking-[0.2em] mt-2">{e.startTime === 'G' ? 'ALL DAY' : 'CHRONO RANGE'}</span>
                            </div>
                            <div className="flex-1">
-                              <div className="text-xl font-black uppercase tracking-tight text-slate-950 leading-none mb-1 italic group-hover:text-blue-600 transition">{e.title}</div>
+                              <div className="text-xl font-black uppercase tracking-tight text-slate-950 leading-none mb-1 italic group-hover:text-blue-600 transition text-left">{e.title}</div>
                               <div className="flex items-center gap-2 opacity-40">
                                  {e.dot && <div className={`w-2 h-2 rounded-full ${e.dot}`}></div>}
                                  <div className="text-[10px] font-bold uppercase tracking-widest">{e.isReadOnly ? 'Node Synced' : 'Manual Precision Entry'}</div>
@@ -457,10 +458,10 @@ export default function App() {
         </div>
       </main>
 
-      {/* MODALE DATA VAULT */}
+      {/* DATA VAULT */}
       {modalMode === 'sync' && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[100] flex items-center justify-center p-6 text-center text-slate-900 animate-in fade-in duration-200">
-          <div className="bg-white rounded-xl p-10 w-full max-w-sm shadow-2xl">
+          <div className="bg-white rounded-xl p-10 w-full max-sm shadow-2xl">
              <div className="w-16 h-16 rounded-xl flex items-center justify-center mx-auto mb-6 bg-blue-50 text-blue-600 shadow-sm"><Icons.Cloud /></div>
              <h3 className="text-2xl font-black uppercase mb-8 tracking-tight italic text-slate-950 text-center leading-none">Data <span className="text-blue-600">Precision Vault</span></h3>
              
@@ -491,7 +492,7 @@ export default function App() {
                 <input type="file" ref={fileInputRef} onChange={importBackup} accept=".json" className="hidden" />
              </div>
 
-             <button onClick={() => setModalMode(null)} className="w-full text-[9px] font-black uppercase text-slate-400 hover:text-slate-950 transition tracking-[0.5em] text-center font-bold">Esci</button>
+             <button onClick={() => setModalMode(null)} className="w-full text-[9px] font-black uppercase text-slate-400 hover:text-slate-900 transition tracking-[0.5em] text-center font-bold">Esci</button>
           </div>
         </div>
       )}
@@ -502,24 +503,23 @@ export default function App() {
           <div className="bg-white rounded-xl p-10 w-full max-w-sm shadow-2xl">
              <div className="flex justify-between items-start mb-8 text-left border-b border-slate-50 pb-6">
                 <div className="text-left">
-                   <h3 className="text-2xl font-black uppercase tracking-tight italic text-slate-950 leading-none">{modalMode === 'edit' ? 'Aggiorna' : 'Pianifica'}</h3>
-                   <p className="text-blue-600 text-[8px] font-bold uppercase tracking-[0.4em] mt-3 italic">{selectedDate}</p>
+                   <h3 className="text-2xl font-black uppercase tracking-tight italic text-slate-950 leading-none text-left">{modalMode === 'edit' ? 'Aggiorna' : 'Pianifica'}</h3>
+                   <p className="text-blue-600 text-[8px] font-bold uppercase tracking-[0.4em] mt-3 italic text-left">{selectedDate}</p>
                 </div>
                 <button onClick={() => setModalMode(null)} className="p-2 hover:bg-slate-100 rounded text-slate-400 transition"><Icons.X /></button>
              </div>
              
              <div className="space-y-8">
-                {/* PRESET BUTTONS - THE CORE OF V69 */}
                 <div className="space-y-3">
-                   <label className="text-[8px] font-black uppercase text-slate-400 ml-1 tracking-[0.2em] block text-center">Seleziona Turno Rapido</label>
+                   <label className="text-[8px] font-black uppercase text-slate-400 ml-1 tracking-[0.2em] block text-center italic">Seleziona Turno Rapido</label>
                    <div className="grid grid-cols-1 gap-2">
                       <button 
                          onClick={() => { setFormTitle('Mattina'); setFormStart('09:00'); setFormEnd('14:00'); setFormColor(PALETTE[0]); }}
-                         className={`p-4 rounded-lg border flex items-center justify-between transition-all group ${formTitle === 'Mattina' ? 'bg-blue-50 border-blue-500' : 'bg-slate-50 border-slate-100 hover:border-blue-300'}`}
+                         className={`p-4 rounded-lg border flex items-center justify-between transition-all group ${formTitle === 'Mattina' ? 'bg-blue-50 border-blue-500 shadow-sm' : 'bg-slate-50 border-slate-100 hover:border-blue-300'}`}
                       >
                          <div className="flex items-center gap-3 text-left">
                             <span className="text-xl">🌅</span>
-                            <div className="flex flex-col leading-none">
+                            <div className="flex flex-col leading-none text-left">
                                <span className="text-[10px] font-black uppercase italic text-slate-900">Mattina</span>
                                <span className="text-[8px] font-bold text-slate-400 mt-1">09:00 - 14:00</span>
                             </div>
@@ -529,11 +529,11 @@ export default function App() {
 
                       <button 
                          onClick={() => { setFormTitle('Pomeriggio'); setFormStart('14:30'); setFormEnd('19:30'); setFormColor(PALETTE[2]); }}
-                         className={`p-4 rounded-lg border flex items-center justify-between transition-all group ${formTitle === 'Pomeriggio' ? 'bg-amber-50 border-amber-500' : 'bg-slate-50 border-slate-100 hover:border-amber-300'}`}
+                         className={`p-4 rounded-lg border flex items-center justify-between transition-all group ${formTitle === 'Pomeriggio' ? 'bg-amber-50 border-amber-500 shadow-sm' : 'bg-slate-50 border-slate-100 hover:border-amber-300'}`}
                       >
                          <div className="flex items-center gap-3 text-left">
                             <span className="text-xl">☀️</span>
-                            <div className="flex flex-col leading-none">
+                            <div className="flex flex-col leading-none text-left">
                                <span className="text-[10px] font-black uppercase italic text-slate-900">Pomeriggio</span>
                                <span className="text-[8px] font-bold text-slate-400 mt-1">14:30 - 19:30</span>
                             </div>
@@ -543,11 +543,11 @@ export default function App() {
 
                       <button 
                          onClick={() => { setFormTitle('Riposo'); setFormStart('00:00'); setFormEnd('23:59'); setFormColor(PALETTE[4]); }}
-                         className={`p-4 rounded-lg border flex items-center justify-between transition-all group ${formTitle === 'Riposo' ? 'bg-emerald-50 border-emerald-500' : 'bg-slate-50 border-slate-100 hover:border-emerald-300'}`}
+                         className={`p-4 rounded-lg border flex items-center justify-between transition-all group ${formTitle === 'Riposo' ? 'bg-emerald-50 border-emerald-500 shadow-sm' : 'bg-slate-50 border-slate-100 hover:border-emerald-300'}`}
                       >
                          <div className="flex items-center gap-3 text-left">
                             <span className="text-xl">🌴</span>
-                            <div className="flex flex-col leading-none">
+                            <div className="flex flex-col leading-none text-left">
                                <span className="text-[10px] font-black uppercase italic text-slate-900">Riposo</span>
                                <span className="text-[8px] font-bold text-slate-400 mt-1">Giorno Libero</span>
                             </div>
@@ -557,23 +557,22 @@ export default function App() {
                    </div>
                 </div>
 
-                {/* EDITABLE TIME OVERRIDE */}
                 <div className="bg-slate-50 p-6 rounded-xl border border-slate-100">
-                   <label className="text-[8px] font-black uppercase text-slate-400 ml-1 tracking-[0.2em] block mb-4 text-center italic">Personalizza Orario (Se necessario)</label>
+                   <label className="text-[8px] font-black uppercase text-slate-400 ml-1 tracking-[0.2em] block mb-4 text-center italic">Personalizza Orario (Override)</label>
                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                         <label className="text-[7px] font-black uppercase text-slate-400 ml-1">Inizio</label>
+                      <div className="text-left">
+                         <label className="text-[7px] font-black uppercase text-slate-400 ml-1 block text-left">Inizio</label>
                          <input type="time" value={formStart} onChange={e => setFormStart(e.target.value)} className="w-full bg-white p-3 rounded-lg font-black text-[11px] border border-slate-200 focus:border-blue-500 outline-none text-center shadow-sm" />
                       </div>
-                      <div>
-                         <label className="text-[7px] font-black uppercase text-slate-400 ml-1">Fine</label>
+                      <div className="text-left">
+                         <label className="text-[7px] font-black uppercase text-slate-400 ml-1 block text-left">Fine</label>
                          <input type="time" value={formEnd} onChange={e => setFormEnd(e.target.value)} className="w-full bg-white p-3 rounded-lg font-black text-[11px] border border-slate-200 focus:border-blue-500 outline-none text-center shadow-sm" />
                       </div>
                    </div>
                 </div>
 
                 <div className="flex gap-3">
-                   <button onClick={() => setModalMode(null)} className="flex-1 text-[9px] font-black uppercase text-slate-400 hover:text-slate-900 transition tracking-[0.3em] font-bold py-4">Esci</button>
+                   <button onClick={() => setModalMode(null)} className="flex-1 text-[9px] font-black uppercase text-slate-400 hover:text-slate-900 transition tracking-[0.3em] font-bold py-4 italic">Esci</button>
                    <button onClick={handleSave} className="flex-[2] bg-slate-950 text-white py-4 rounded-xl font-black uppercase text-[10px] hover:bg-black transition-all shadow-xl tracking-widest italic">Salva Turno</button>
                 </div>
              </div>
@@ -581,15 +580,36 @@ export default function App() {
         </div>
       )}
 
-      {/* SETTINGS iCAL */}
+      {/* SETTINGS iCAL (CHROME-NODE COLOR PICKER) */}
       {modalMode === 'settings' && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-lg z-[100] flex items-center justify-center p-8 text-center text-slate-900 animate-in fade-in duration-200">
           <div className="bg-white rounded-xl p-12 w-full max-w-sm shadow-2xl border border-white/20">
-            <h3 className="text-2xl font-black uppercase mb-10 tracking-tight italic text-center text-slate-950 leading-none">Add <span className="text-blue-600">Data Node</span></h3>
+            <h3 className="text-2xl font-black uppercase mb-10 tracking-tight italic text-center text-slate-950 leading-none font-bold">Add <span className="text-blue-600">Data Node</span></h3>
             <div className="space-y-5">
-               <input value={newIcalName} onChange={e => setNewIcalName(e.target.value)} placeholder="NOME CALENDARIO" className="w-full bg-slate-50 p-5 rounded-lg font-black text-[10px] outline-none border border-slate-100 focus:border-blue-500 text-center uppercase tracking-widest shadow-inner mt-1" />
-               <input value={newIcalUrl} onChange={e => setNewIcalUrl(e.target.value)} placeholder="HTTPS://... (ICS)" className="w-full bg-slate-50 p-5 rounded-lg font-black text-[10px] outline-none border border-slate-100 focus:border-blue-500 text-center shadow-inner mt-1" />
-               <button onClick={() => { if (!newIcalUrl) return; setIcalSources([...(icalSources || []), { name: newIcalName, url: newIcalUrl, color: newIcalColor }]); setNewIcalName(''); setNewIcalUrl(''); setModalMode(null); }} className="w-full bg-slate-950 text-white py-6 rounded-lg font-black uppercase text-[10px] hover:bg-black transition-all shadow-xl tracking-widest mt-6 italic">Inietta Node</button>
+               <div className="text-left">
+                  <label className="text-[8px] font-black uppercase text-slate-400 ml-1 tracking-[0.2em] block text-left">Etichetta Nodo</label>
+                  <input value={newIcalName} onChange={e => setNewIcalName(e.target.value)} placeholder="ES: LAVORO, FAMIGLIA..." className="w-full bg-slate-50 p-5 rounded-lg font-black text-[10px] outline-none border border-slate-100 focus:border-blue-500 text-center uppercase tracking-widest shadow-inner mt-1 text-slate-900" />
+               </div>
+               <div className="text-left">
+                  <label className="text-[8px] font-black uppercase text-slate-400 ml-1 tracking-[0.2em] block text-left">URL iCal (.ics)</label>
+                  <input value={newIcalUrl} onChange={e => setNewIcalUrl(e.target.value)} placeholder="HTTPS://..." className="w-full bg-slate-50 p-5 rounded-lg font-black text-[10px] outline-none border border-slate-100 focus:border-blue-500 text-center shadow-inner mt-1 text-slate-900" />
+               </div>
+               
+               <div className="pt-2">
+                  <label className="text-[8px] font-black uppercase text-slate-400 ml-1 tracking-[0.2em] block mb-3 text-center italic">Personalizzazione Cromatica</label>
+                  <div className="flex justify-center gap-2">
+                     {PALETTE.map(p => (
+                       <button 
+                         key={p.id} 
+                         onClick={() => setNewIcalColor(p.id)}
+                         className={`w-8 h-8 rounded-lg transition-all ${p.dot} ${newIcalColor === p.id ? 'ring-4 ring-offset-4 ring-slate-950 scale-110 shadow-lg' : 'hover:scale-110 opacity-60'}`}
+                         title={p.id}
+                       />
+                     ))}
+                  </div>
+               </div>
+
+               <button onClick={() => { if (!newIcalUrl) return; setIcalSources([...(icalSources || []), { name: newIcalName, url: newIcalUrl, color: newIcalColor }]); setNewIcalName(''); setNewIcalUrl(''); setModalMode(null); }} className="w-full bg-slate-950 text-white py-6 rounded-lg font-black uppercase text-[10px] hover:bg-black transition-all shadow-xl tracking-widest mt-6 italic shadow-blue-900/10">Inietta Node</button>
                <button onClick={() => setModalMode(null)} className="w-full text-[9px] font-black uppercase text-slate-400 tracking-[0.5em] pt-6 hover:text-slate-950 transition text-center font-bold italic">Annulla</button>
             </div>
           </div>
